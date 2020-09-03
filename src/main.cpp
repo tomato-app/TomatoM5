@@ -26,7 +26,6 @@ DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 String M5NSversion("20200825");
 WiFiMulti WiFiMultiple;
 
-
 // extern const unsigned char alarmSndData[];
 
 extern const unsigned char sun_icon16x16[];
@@ -76,6 +75,13 @@ WebServer server(80);
 char stringParamValue[STRING_LEN];
 char intParamValue[NUMBER_LEN];
 char floatParamValue[NUMBER_LEN];
+
+unsigned long msCount;
+unsigned long msCountLog;
+unsigned long msStart;
+uint8_t lcdBrightness = 10;
+const char iniFilename[] = "/M5NS.INI";
+tConfig cfg;
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 IotWebConfParameter stringParam = IotWebConfParameter("String param", "stringParam", stringParamValue, STRING_LEN);
@@ -143,13 +149,13 @@ void serverForConfig()
 
 void showGuidelines()
 {
-  if(WiFiMultiple.run() != WL_CONNECTED)
-    {
-      M5.Lcd.drawString("Please link to the wifi: ",20, 20, GFXFF);
-      M5.Lcd.drawString("TomatoM5",20, 50, GFXFF);
-      M5.Lcd.drawString("         ",20, 70, GFXFF);
-      M5.Lcd.drawString("and then open 192.168.4.1",20, 80, GFXFF);
-    }
+  if (WiFiMultiple.run() != WL_CONNECTED)
+  {
+    M5.Lcd.drawString("Please link to the wifi: ", 20, 20, GFXFF);
+    M5.Lcd.drawString("TomatoM5", 20, 50, GFXFF);
+    M5.Lcd.drawString("         ", 20, 70, GFXFF);
+    M5.Lcd.drawString("and then open 192.168.4.1", 20, 80, GFXFF);
+  }
 }
 
 void webConfigPortal()
@@ -172,17 +178,34 @@ void webConfigPortal()
   delay(10000);
 }
 
+void startupLogo()
+{
+  // static uint8_t brightness, pre_brightness;
+  M5.Lcd.setBrightness(0);
+  if (cfg.bootPic[0] == 0)
+  {
+    
+    M5.Lcd.drawString("Tomato M5 STack Monitor", 60, 80, GFXFF);
+  }
+  else
+  {
+    M5.Lcd.drawJpgFile(SPIFFS, cfg.bootPic);
+  }
+  M5.Lcd.setBrightness(100);
+  M5.update();
+}
+
 void setup()
 {
   M5.begin();
   // prevent button A "ghost" random presses
   Wire.begin();
   Serial.begin(115200);
-  // SPIFFS.begin(true);
-  // if (!SPIFFS.begin())
-  //   while (1)
-  //     Serial.println("SPIFFS.begin() failed");
-  //     M5.Lcd.println("SPIFFS.begin() failed");
+  SPIFFS.begin(true);
+  if (!SPIFFS.begin())
+    while (1)
+      Serial.println("SPIFFS.begin() failed");
+  M5.Lcd.println("SPIFFS.begin() failed");
   M5.Speaker.mute();
 
   Serial.println("Ready.");
@@ -197,8 +220,30 @@ void setup()
 
   Serial.print("Free Heap: ");
   Serial.println(ESP.getFreeHeap());
+  readConfiguration(iniFilename, &cfg);
+
+  if (cfg.invert_display != -1)
+  {
+    M5.Lcd.invertDisplay(cfg.invert_display);
+    Serial.print("Calling M5.Lcd.invertDisplay(");
+    Serial.print(cfg.invert_display);
+    Serial.println(")");
+  }
+  else
+  {
+    Serial.println("No invert_display defined in INI.");
+  }
+  M5.Lcd.setRotation(cfg.display_rotation);
+  lcdBrightness = cfg.brightness1;
+  M5.Lcd.setBrightness(lcdBrightness);
+
+  startupLogo();
+  
+  M5.Lcd.setBrightness(lcdBrightness);
+  delay(1000);  
 
   webConfigPortal();
+  yield();
   // -- Set up required URL handlers on the web server.
 }
 
