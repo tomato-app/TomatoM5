@@ -15,7 +15,7 @@
 #include <ArduinoJson.h>
 #include "Free_Fonts.h"
 #include "IniFile.h"
-// #include "M5NSconfig.h"
+#include "M5NSconfig.h"
 // #include "M5NSWebConfig.h"
 #include "DHT12.h"
 #include <Wire.h> //The DHT12 uses I2C comunication.
@@ -184,7 +184,7 @@ void startupLogo()
   M5.Lcd.setBrightness(0);
   if (cfg.bootPic[0] == 0)
   {
-    
+
     M5.Lcd.drawString("Tomato M5 STack Monitor", 60, 80, GFXFF);
   }
   else
@@ -238,9 +238,9 @@ void setup()
   M5.Lcd.setBrightness(lcdBrightness);
 
   startupLogo();
-  
+   M5.Lcd.fillScreen(MAROON);
   M5.Lcd.setBrightness(lcdBrightness);
-  delay(1000);  
+  delay(1000);
 
   webConfigPortal();
   yield();
