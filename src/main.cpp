@@ -19,7 +19,7 @@
 #include "M5NSWebConfig.h"
 #include "DHT12.h"
 #include <Wire.h> //The DHT12 uses I2C comunication.
-#include <IotWebConf.h>
+#include <WiFiConfig.h>
 
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
