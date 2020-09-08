@@ -6,7 +6,7 @@
 #include "M5NSconfig.h"
 #include <WiFiMulti.h>
 
-extern WebServer w3srv;
+extern WebServer server;
 extern tConfig cfg;
 extern struct NSinfo ns;
 extern WiFiMulti WiFiMultiple;
