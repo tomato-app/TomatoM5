@@ -65,7 +65,7 @@ unsigned long msStart;
 uint8_t lcdBrightness = 10;
 const char iniFilename[] = {"/M5NS.INI"};
 
-DynamicJsonDocument JSONdoc(1024);
+DynamicJsonDocument JSONdoc(16384);
 time_t lastAlarmTime = 0;
 time_t lastSnoozeTime = 0;
 static uint8_t music_data[25000];
@@ -1750,7 +1750,7 @@ void draw_page()
 
 void serverForConfig()
 {
-  configManager.setAPName("TomatoDemo");
+  configManager.setAPName("TomatoM5");
   configManager.setAPName(NULL);
   configManager.setAPFilename("/index.html");
 
@@ -1880,6 +1880,7 @@ void setup()
 
   startupLogo();
   delay(2000);
+   yield();
   lcdBrightness = cfg.brightness1;
   M5.Lcd.setBrightness(lcdBrightness);
   Serial.print("Free Heap = ");
