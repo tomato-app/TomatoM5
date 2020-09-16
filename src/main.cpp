@@ -2,7 +2,6 @@
 #include <M5Stack.h>
 #include <Preferences.h>
 #include <WiFi.h>
-#include <WiFiMulti.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
@@ -24,7 +23,6 @@
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
 String M5NSversion("20200825");
-WiFiMulti WiFiMultiple;
 
 // extern const unsigned char alarmSndData[];
 
@@ -98,6 +96,41 @@ struct err_log_item
 } err_log[10];
 int err_log_ptr = 0;
 int err_log_count = 0;
+
+void printLocalTime()
+{
+  if (!getLocalTime(&localTimeInfo))
+  {
+    Serial.println("Failed to obtain time");
+    M5.Lcd.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&localTimeInfo, "%A, %B %d %Y %H:%M:%S");
+  M5.Lcd.println(&localTimeInfo, "%A, %B %d %Y %H:%M:%S");
+}
+
+void getDevicetime(){
+  configTime(cfg.timeZone, cfg.dst, ntpServer, "time.nist.gov", "time.google.com");
+  delay(1000);
+  Serial.print("Waiting for time.");
+  int i = 0;
+  while (!getLocalTime(&localTimeInfo))
+  {
+    Serial.print(".");
+    delay(1000);
+    i++;
+    if (i > MAX_TIME_RETRY)
+    {
+      Serial.print("Gave up waiting for time to have a valid value.");
+      break;
+    }
+  }
+  Serial.println();
+  printLocalTime();
+
+  Serial.println("Connection done");
+  M5.Lcd.println("Connection done");
+}
 
 void play_music_data(uint32_t data_length, uint8_t volume)
 {
@@ -676,7 +709,7 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
   int err = 0;
   char tmpstr[32];
 
-  if ((WiFiMultiple.run() == WL_CONNECTED))
+  if ((WiFi.status() == WL_CONNECTED))
   {
     // configure target server and url
     if (strncmp(url, "http", 4))
@@ -1717,7 +1750,8 @@ void draw_page()
 
 void serverForConfig()
 {
-  configManager.setAPName("TomatoM5");
+  configManager.setAPName("TomatoDemo");
+  configManager.setAPName(NULL);
   configManager.setAPFilename("/index.html");
 
   configManager.addParameterGroup("app", new Metadata("Application", "Example of application properties"))
@@ -1725,7 +1759,7 @@ void serverForConfig()
       .addParameter("enabled", &config.enabled, new Metadata("Enabled"))
       .addParameter("hour", &config.hour, new Metadata("Hour"));
 
-  // configManager.addParameterGroup("remote", new Metadata("remote", "Example of application properties"))
+  // configManager.addParameterGroup("app", new Metadata("remote", "Example of application properties"))
   //     .addParameter("url", config.name, 20, new Metadata("Name"))
   //     .addParameter("token", &config.enabled, new Metadata("Enabled"));
 
@@ -1735,7 +1769,7 @@ void serverForConfig()
 void showGuidelines()
 {
   M5.Lcd.drawString("Please link to the wifi: ", 20, 20, GFXFF);
-  M5.Lcd.drawString("TomatoM5", 20, 50, GFXFF);
+  M5.Lcd.drawString("ToamtoM5", 20, 50, GFXFF);
   M5.Lcd.drawString("         ", 20, 70, GFXFF);
   M5.Lcd.drawString("and then open 192.168.1.1", 20, 80, GFXFF);
 }
@@ -1744,12 +1778,6 @@ void webConfigPortal()
 {
   serverForConfig();
   showGuidelines();
-  // while (WiFiMultiple.run() != WL_CONNECTED)
-  // {
-  //   showGuidelines();
-  // }
-  
-  // delay(10000);
 }
 
 void startupLogo()
@@ -1829,7 +1857,7 @@ void setup()
   M5.Lcd.setTextColor(WHITE);
   M5.Lcd.setCursor(0, 0);
   M5.Lcd.setTextSize(2);
-  // yield();
+  yield();
 
   Serial.print("Free Heap: ");
   Serial.println(ESP.getFreeHeap());
@@ -1851,182 +1879,196 @@ void setup()
   M5.Lcd.setBrightness(lcdBrightness);
 
   startupLogo();
-  delay(1000);
-  M5.Lcd.fillScreen(MAROON);
+  delay(2000);
+  lcdBrightness = cfg.brightness1;
   M5.Lcd.setBrightness(lcdBrightness);
   Serial.print("Free Heap = ");
   Serial.println(ESP.getFreeHeap());
-  serverForConfig();
-  // showGuidelines();
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    webConfigPortal();
+  }
 
   // yield();
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    getDevicetime();                                                                                                
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setBrightness(lcdBrightness);
 
-  M5.Lcd.fillScreen(MAROON);
-  M5.Lcd.setBrightness(lcdBrightness);
-
-  // dispPage = cfg.default_page;
-  // setPageIconPos(dispPage);
-  // // stat startup time
-  // msStart = millis();
-  // // update glycemia now
-  // msCount = msStart - 16000;
+    dispPage = cfg.default_page;
+    setPageIconPos(dispPage);
+    // stat startup time
+    msStart = millis();
+    // update glycemia now
+    msCount = msStart - 16000;
+  }
+  
 }
 
 void loop()
 {
   configManager.loop();
   // -- doLoop should be called as frequently as possible.
-  // buttons_test();
+  buttons_test();
 
-  // // update glycemia every 15s
-  // if (millis() - msCount > 15000)
-  // {
-  //   /* if(dispPage==2)
-  //     M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
-  //   */
-  //   // readNightscout(cfg.url, cfg.token, &ns);
-  //   draw_page();
-  //   msCount = millis();
-  //   Serial.print("msCount = ");
-  //   Serial.println(msCount);
-  // }
-  // else
-  // {
-  //   if ((cfg.restart_at_logged_errors > 0) && (err_log_count >= cfg.restart_at_logged_errors))
-  //   {
-  //     Serial.println("Restarting on number of logged errors...");
-  //     delay(500);
-  //     preferences.begin("M5StackNS", false);
-  //     preferences.putBool("SoftReset", true);
-  //     preferences.putUInt("LastSnoozeTime", lastSnoozeTime);
-  //     preferences.end();
-  //     ESP.restart();
-  //   }
-  //   char lastResetTime[10];
-  //   strcpy(lastResetTime, "Unknown");
-  //   if (getLocalTime(&localTimeInfo))
-  //   {
-  //     sprintf(localTimeStr, "%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min);
-  //     // no soft restart less than a minute from last restart to prevent several restarts in the same minute
-  //     if ((millis() - msStart > 60000) && (strcmp(cfg.restart_at_time, localTimeStr) == 0))
-  //     {
-  //       Serial.println("Restarting on preset time...");
-  //       delay(500);
-  //       preferences.begin("M5StackNS", false);
-  //       preferences.putBool("SoftReset", true);
-  //       preferences.putUInt("LastSnoozeTime", lastSnoozeTime);
-  //       preferences.end();
-  //       ESP.restart();
-  //     }
-  //   }
-  //   if ((dispPage == 0) && cfg.show_current_time)
-  //   {
-  //     // update current time on display
-  //     M5.Lcd.setFreeFont(FSSB12);
-  //     M5.Lcd.setTextSize(1);
-  //     M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  //     if (getLocalTime(&localTimeInfo))
-  //     {
-  //       switch (cfg.date_format)
-  //       {
-  //       case 1:
-  //         sprintf(localTimeStr, "%02d:%02d  %d/%d  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mon + 1, localTimeInfo.tm_mday);
-  //         break;
-  //       default:
-  //         sprintf(localTimeStr, "%02d:%02d  %d.%d.  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mday, localTimeInfo.tm_mon + 1);
-  //       }
-  //     }
-  //     else
-  //     {
-  //       strcpy(localTimeStr, "??:??");
-  //       lastMin = 61;
-  //     }
-  //     if (lastMin != localTimeInfo.tm_min)
-  //     {
-  //       lastSec = localTimeInfo.tm_sec;
-  //       lastMin = localTimeInfo.tm_min;
-  //       M5.Lcd.drawString(localTimeStr, 0, 0, GFXFF);
-  //     }
-  //   }
-  //   if (dispPage == 2)
-  //   {
-  //     if (getLocalTime(&localTimeInfo))
-  //     {
-  //       // sprintf(localTimeStr, "%02d:%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_sec);
-  //     }
-  //     else
-  //     {
-  //       lastMin = 61;
-  //       lastSec = 61;
-  //     }
-  //     if (lastMin != localTimeInfo.tm_min || lastSec != localTimeInfo.tm_sec)
-  //     {
-  //       lastSec = localTimeInfo.tm_sec;
-  //       lastMin = localTimeInfo.tm_min;
+  // update glycemia every 15s
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    if (millis() - msCount > 15000)
+    {
+      /* if(dispPage==2)
+      M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
+    */
+      readNightscout(cfg.url, cfg.token, &ns);
+      draw_page();
+      msCount = millis();
+      Serial.print("msCount = ");
+      Serial.println(msCount);
+    }
+    else
+    {
+      if ((cfg.restart_at_logged_errors > 0) && (err_log_count >= cfg.restart_at_logged_errors))
+      {
+        Serial.println("Restarting on number of logged errors...");
+        delay(500);
+        preferences.begin("M5StackNS", false);
+        preferences.putBool("SoftReset", true);
+        preferences.putUInt("LastSnoozeTime", lastSnoozeTime);
+        preferences.end();
+        ESP.restart();
+      }
+      char lastResetTime[10];
+      strcpy(lastResetTime, "Unknown");
+      if (getLocalTime(&localTimeInfo))
+      {
+        sprintf(localTimeStr, "%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min);
+        // no soft restart less than a minute from last restart to prevent several restarts in the same minute
+        if ((millis() - msStart > 60000) && (strcmp(cfg.restart_at_time, localTimeStr) == 0))
+        {
+          Serial.println("Restarting on preset time...");
+          delay(500);
+          preferences.begin("M5StackNS", false);
+          preferences.putBool("SoftReset", true);
+          preferences.putUInt("LastSnoozeTime", lastSnoozeTime);
+          preferences.end();
+          ESP.restart();
+        }
+      }
+      if ((dispPage == 0) && cfg.show_current_time)
+      {
+        // update current time on display
+        M5.Lcd.setFreeFont(FSSB12);
+        M5.Lcd.setTextSize(1);
+        M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+        if (getLocalTime(&localTimeInfo))
+        {
+          switch (cfg.date_format)
+          {
+          case 1:
+            sprintf(localTimeStr, "%02d:%02d  %d/%d  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mon + 1, localTimeInfo.tm_mday);
+            break;
+          default:
+            sprintf(localTimeStr, "%02d:%02d  %d.%d.  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mday, localTimeInfo.tm_mon + 1);
+          }
+        }
+        else
+        {
+          strcpy(localTimeStr, "??:??");
+          lastMin = 61;
+        }
+        if (lastMin != localTimeInfo.tm_min)
+        {
+          lastSec = localTimeInfo.tm_sec;
+          lastMin = localTimeInfo.tm_min;
+          M5.Lcd.drawString(localTimeStr, 0, 0, GFXFF);
+        }
+      }
+      if (dispPage == 2)
+      {
+        if (getLocalTime(&localTimeInfo))
+        {
+          // sprintf(localTimeStr, "%02d:%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_sec);
+        }
+        else
+        {
+          lastMin = 61;
+          lastSec = 61;
+        }
+        if (lastMin != localTimeInfo.tm_min || lastSec != localTimeInfo.tm_sec)
+        {
+          lastSec = localTimeInfo.tm_sec;
+          lastMin = localTimeInfo.tm_min;
 
-  //       float sx = 0, sy = 1, mx = 1, my = 0, hx = -1, hy = 0; // Saved H, M, S x & y multipliers
-  //       float sdeg = 0, mdeg = 0, hdeg = 0;
+          float sx = 0, sy = 1, mx = 1, my = 0, hx = -1, hy = 0; // Saved H, M, S x & y multipliers
+          float sdeg = 0, mdeg = 0, hdeg = 0;
 
-  //       uint8_t hh = localTimeInfo.tm_hour, mm = localTimeInfo.tm_min, ss = localTimeInfo.tm_sec; // Get current time
+          uint8_t hh = localTimeInfo.tm_hour, mm = localTimeInfo.tm_min, ss = localTimeInfo.tm_sec; // Get current time
 
-  //       // Pre-compute hand degrees, x & y coords for a fast screen update
-  //       sdeg = ss * 6;                     // 0-59 -> 0-354
-  //       mdeg = mm * 6 + sdeg * 0.01666667; // 0-59 -> 0-360 - includes seconds
-  //       hdeg = hh * 30 + mdeg * 0.0833333; // 0-11 -> 0-360 - includes minutes and seconds
-  //       hx = cos((hdeg - 90) * 0.0174532925);
-  //       hy = sin((hdeg - 90) * 0.0174532925);
-  //       mx = cos((mdeg - 90) * 0.0174532925);
-  //       my = sin((mdeg - 90) * 0.0174532925);
-  //       sx = cos((sdeg - 90) * 0.0174532925);
-  //       sy = sin((sdeg - 90) * 0.0174532925);
+          // Pre-compute hand degrees, x & y coords for a fast screen update
+          sdeg = ss * 6;                     // 0-59 -> 0-354
+          mdeg = mm * 6 + sdeg * 0.01666667; // 0-59 -> 0-360 - includes seconds
+          hdeg = hh * 30 + mdeg * 0.0833333; // 0-11 -> 0-360 - includes minutes and seconds
+          hx = cos((hdeg - 90) * 0.0174532925);
+          hy = sin((hdeg - 90) * 0.0174532925);
+          mx = cos((mdeg - 90) * 0.0174532925);
+          my = sin((mdeg - 90) * 0.0174532925);
+          sx = cos((sdeg - 90) * 0.0174532925);
+          sy = sin((sdeg - 90) * 0.0174532925);
 
-  //       if (ss == 0 || initial)
-  //       {
-  //         initial = 0;
-  //         // Erase hour and minute hand positions every minute
-  //         M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_BLACK);
-  //         M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_BLACK);
-  //         M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_BLACK);
-  //         M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_BLACK);
-  //         M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_BLACK);
-  //         ohx = hx * 52 + 160;
-  //         ohy = hy * 52 + 110;
-  //         M5.Lcd.drawLine(omx, omy, 160, 110, TFT_BLACK);
-  //         omx = mx * 74 + 160;
-  //         omy = my * 74 + 110;
-  //       }
+          if (ss == 0 || initial)
+          {
+            initial = 0;
+            // Erase hour and minute hand positions every minute
+            M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_BLACK);
+            M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_BLACK);
+            M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_BLACK);
+            M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_BLACK);
+            M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_BLACK);
+            ohx = hx * 52 + 160;
+            ohy = hy * 52 + 110;
+            M5.Lcd.drawLine(omx, omy, 160, 110, TFT_BLACK);
+            omx = mx * 74 + 160;
+            omy = my * 74 + 110;
+          }
 
-  //       // erase old seconds hand position
-  //       M5.Lcd.drawLine(osx, osy, 160, 110, TFT_BLACK);
+          // erase old seconds hand position
+          M5.Lcd.drawLine(osx, osy, 160, 110, TFT_BLACK);
 
-  //       // draw day
-  //       M5.Lcd.drawRoundRect(182, 97, 36, 26, 7, TFT_LIGHTGREY);
-  //       M5.Lcd.setTextDatum(MC_DATUM);
-  //       M5.Lcd.setFreeFont(FSSB9);
-  //       M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  //       M5.Lcd.drawString(String(localTimeInfo.tm_mday), 200, 108, GFXFF);
+          // draw day
+          M5.Lcd.drawRoundRect(182, 97, 36, 26, 7, TFT_LIGHTGREY);
+          M5.Lcd.setTextDatum(MC_DATUM);
+          M5.Lcd.setFreeFont(FSSB9);
+          M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+          M5.Lcd.drawString(String(localTimeInfo.tm_mday), 200, 108, GFXFF);
 
-  //       // draw name
-  //       M5.Lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
-  //       M5.Lcd.drawString(cfg.userName, 160, 145, GFXFF);
+          // draw name
+          M5.Lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
+          M5.Lcd.drawString(cfg.userName, 160, 145, GFXFF);
 
-  //       // draw digital time
-  //       // M5.Lcd.drawString(localTimeStr, 160, 75, GFXFF);
+          // draw digital time
+          // M5.Lcd.drawString(localTimeStr, 160, 75, GFXFF);
 
-  //       // Redraw new hand positions, hour and minute hands not erased here to avoid flicker
-  //       osx = sx * 78 + 160;
-  //       osy = sy * 78 + 110;
-  //       // M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
-  //       M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_WHITE);
-  //       M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_WHITE);
-  //       M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_WHITE);
-  //       M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_WHITE);
-  //       M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_WHITE);
-  //       M5.Lcd.drawLine(omx, omy, 160, 110, TFT_WHITE);
-  //       M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
+          // Redraw new hand positions, hour and minute hands not erased here to avoid flicker
+          osx = sx * 78 + 160;
+          osy = sy * 78 + 110;
+          // M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
+          M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_WHITE);
+          M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_WHITE);
+          M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_WHITE);
+          M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_WHITE);
+          M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_WHITE);
+          M5.Lcd.drawLine(omx, omy, 160, 110, TFT_WHITE);
+          M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
 
-  //       M5.Lcd.fillCircle(160, 110, 3, TFT_RED);
-  //     }
-  //   }
-  // }
+          M5.Lcd.fillCircle(160, 110, 3, TFT_RED);
+        }
+      }
+    }
+  }
+  else
+  {
+    return;
+  }
 }
