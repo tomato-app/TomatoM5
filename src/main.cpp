@@ -75,9 +75,9 @@ int icon_ypos[3] = {0, 0, 0};
 
 struct Config
 {
-  char name[20] = {0};
-  bool enabled = false;
-  int hour = 0;
+    bool enabled = false;
+    char server[128] = {0};
+    int port = 0;
 } config;
 
 ConfigManager configManager;
@@ -1751,17 +1751,13 @@ void draw_page()
 void serverForConfig()
 {
   configManager.setAPName("TomatoM5");
-  configManager.setAPName(NULL);
   configManager.setAPFilename("/index.html");
 
-  configManager.addParameterGroup("app", new Metadata("Application", "Example of application properties"))
-      .addParameter("name", config.name, 20, new Metadata("Name"))
-      .addParameter("enabled", &config.enabled, new Metadata("Enabled"))
-      .addParameter("hour", &config.hour, new Metadata("Hour"));
+  configManager.addParameterGroup("mqtt", new Metadata("MQTT Configuration", "Configuration of MQTT connection"))
+    .addParameter("enabled", &config.enabled, new Metadata("Enabled"))
+    .addParameter("server", config.server, 128, new Metadata("Server"))
+    .addParameter("port", &config.port, new Metadata("Port", "Default value 1883"));
 
-  // configManager.addParameterGroup("app", new Metadata("remote", "Example of application properties"))
-  //     .addParameter("url", config.name, 20, new Metadata("Name"))
-  //     .addParameter("token", &config.enabled, new Metadata("Enabled"));
 
   configManager.begin(config);
 }
@@ -1777,7 +1773,10 @@ void showGuidelines()
 void webConfigPortal()
 {
   serverForConfig();
-  showGuidelines();
+  if (WiFi.status() != WL_CONNECTED){
+    M5.Lcd.fillScreen(BLACK);
+    showGuidelines();
+  }
 }
 
 void startupLogo()
@@ -1881,13 +1880,13 @@ void setup()
   startupLogo();
   delay(2000);
    yield();
-  lcdBrightness = cfg.brightness1;
   M5.Lcd.setBrightness(lcdBrightness);
   Serial.print("Free Heap = ");
   Serial.println(ESP.getFreeHeap());
 
   if (WiFi.status() != WL_CONNECTED)
   {
+    M5.Lcd.setBrightness(lcdBrightness);
     webConfigPortal();
   }
 
@@ -2072,4 +2071,5 @@ void loop()
   {
     return;
   }
+   M5.update();
 }
