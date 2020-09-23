@@ -63,7 +63,7 @@ unsigned long msCount;
 unsigned long msCountLog;
 unsigned long msStart;
 uint8_t lcdBrightness = 10;
-const char iniFilename[] = {"/M5NS.INI"};
+const char *iniFilename = "/M5NS.INI";
 
 DynamicJsonDocument JSONdoc(16384);
 time_t lastAlarmTime = 0;
@@ -75,9 +75,11 @@ int icon_ypos[3] = {0, 0, 0};
 
 struct Config
 {
-    bool enabled = false;
-    char server[128] = {0};
-    int port = 0;
+  bool tomatoEnabled = false;
+  char tomatoShareID[128] = {0};
+  bool nSenabled = false;
+  char nSserver[128] = {0};
+  char token[128] = {0};
 } config;
 
 ConfigManager configManager;
@@ -109,7 +111,8 @@ void printLocalTime()
   M5.Lcd.println(&localTimeInfo, "%A, %B %d %Y %H:%M:%S");
 }
 
-void getDevicetime(){
+void getDevicetime()
+{
   configTime(cfg.timeZone, cfg.dst, ntpServer, "time.nist.gov", "time.google.com");
   delay(1000);
   Serial.print("Waiting for time.");
@@ -1753,11 +1756,18 @@ void serverForConfig()
   configManager.setAPName("TomatoM5");
   configManager.setAPFilename("/index.html");
 
-  configManager.addParameterGroup("mqtt", new Metadata("MQTT Configuration", "Configuration of MQTT connection"))
-    .addParameter("enabled", &config.enabled, new Metadata("Enabled"))
-    .addParameter("server", config.server, 128, new Metadata("Server"))
-    .addParameter("port", &config.port, new Metadata("Port", "Default value 1883"));
+  // configManager.addParameterGroup("mqtt", new Metadata("MQTT Configuration", "Configuration of MQTT connection"))
+  //   .addParameter("enabled", &config.enabled, new Metadata("Enabled"))
+  //   .addParameter("server", config.server, 128, new Metadata("Server"))
+  //   .addParameter("port", &config.port, new Metadata("Port", "Default value 1883"));
+  configManager.addParameterGroup("Nightscout", new Metadata("Nightscout Configuration", "Configuration of Nightscout URL and tokens"))
+      .addParameter("enabled", &config.nSenabled, new Metadata("Enabled"))
+      .addParameter("server", config.nSserver, 128, new Metadata("Server"))
+      .addParameter("token", config.token, 64, new Metadata("Token"));
 
+  configManager.addParameterGroup("TomatoServer", new Metadata("Tomato Remote Configuration", "Configuration of Tomato remote shareID"))
+      .addParameter("enabled", &config.tomatoEnabled, new Metadata("Enabled"))
+      .addParameter("shareid", config.tomatoShareID, 128, new Metadata("SHareID"));
 
   configManager.begin(config);
 }
@@ -1773,7 +1783,8 @@ void showGuidelines()
 void webConfigPortal()
 {
   serverForConfig();
-  if (WiFi.status() != WL_CONNECTED){
+  if (WiFi.status() != WL_CONNECTED)
+  {
     M5.Lcd.fillScreen(BLACK);
     showGuidelines();
   }
@@ -1835,6 +1846,18 @@ int8_t getBatteryLevel()
   return -1;
 }
 
+void showConfigLog()
+{
+  Serial.print("config.nSenabled:");
+  Serial.println(config.nSenabled);
+  Serial.print("config.token:");
+  Serial.println(config.token);
+  Serial.print("config.tomatoEnabled:");
+  Serial.println(config.tomatoEnabled);
+  Serial.print("config.tomatoShareID:");
+  Serial.println(config.tomatoShareID);
+}
+
 void setup()
 {
   M5.begin();
@@ -1879,7 +1902,7 @@ void setup()
 
   startupLogo();
   delay(2000);
-   yield();
+  yield();
   M5.Lcd.setBrightness(lcdBrightness);
   Serial.print("Free Heap = ");
   Serial.println(ESP.getFreeHeap());
@@ -1890,10 +1913,12 @@ void setup()
     webConfigPortal();
   }
 
+  showConfigLog();
+
   // yield();
   if (WiFi.status() == WL_CONNECTED)
   {
-    getDevicetime();                                                                                                
+    getDevicetime();
     M5.Lcd.fillScreen(BLACK);
     M5.Lcd.setBrightness(lcdBrightness);
 
@@ -1904,7 +1929,6 @@ void setup()
     // update glycemia now
     msCount = msStart - 16000;
   }
-  
 }
 
 void loop()
@@ -1912,6 +1936,7 @@ void loop()
   configManager.loop();
   // -- doLoop should be called as frequently as possible.
   buttons_test();
+
 
   // update glycemia every 15s
   if (WiFi.status() == WL_CONNECTED)
@@ -2071,5 +2096,5 @@ void loop()
   {
     return;
   }
-   M5.update();
+  M5.update();
 }
