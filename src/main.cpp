@@ -1053,20 +1053,19 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
 int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
 {
   HTTPClient http;
-  char NSurl[128] =  "http://testapi.tomato.cool/m5stack/glycemic/ACD14A6B0B4643CC?start_time=1592870400000&end_time=1592956800000&device_id=xx0x";
+  char NSurl[128] =  "http://testapi.tomato.cool/m5stack/glycemic/ACD14A6B0B4643CC?start_time=1592870400000&end_time=1592956800000&device_id=";
   int err = 0;
   char tmpstr[32];
  const char  *deviceid = WiFi.macAddress().c_str();;
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
+  strcat(NSurl,deviceid);
 
 
   if ((WiFi.status() == WL_CONNECTED))
   {
     // configure target server and url
-    // strcat(NSurl, url);
-    // strcat(NSurl, sharID);
-    // strcat(NSurl, deviceid);
+   
 
     M5.Lcd.fillRect(icon_xpos[0], icon_ypos[0], 16, 16, BLACK);
     drawIcon(icon_xpos[0], icon_ypos[0], (uint8_t *)wifi2_icon16x16, TFT_BLUE);
@@ -1164,7 +1163,7 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
                     time_t tmptime = JSONdoc["data"]["glycemic_time"];  // time in milliseconds since 1970
                     if (ns->sensTime != tmptime)
                     {
-                        for (int i = 0; i < 10; i++)
+                        for (int i = 9; i > 0; i--)
                         { // add new value and shift buffer
                             ns->last10sgv[i] = ns->last10sgv[i - 1];
                         }
@@ -1172,11 +1171,11 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
                         ns->sensTime = tmptime;
                     }
                     ns->rawtime = (long long)ns->sensTime * (long long)1000; // possibly not needed, but to make the structure values complete
-                    strlcpy(ns->sensDir, JSONdoc["trend_words"] | "N/A", 32);
+                    strlcpy(ns->sensDir, JSONdoc["data"]["arrow"] | "0", 32);
                     ns->delta_mgdl = JSONdoc["data"]["change"]; // get value of sensor measurement
                     ns->delta_absolute = ns->delta_mgdl;
                     ns->delta_interpolated = 0;
-                    ns->delta_scaled = ns->delta_mgdl / 18.0;
+                    ns->delta_scaled = ns->delta_mgdl;
                     if (cfg.show_mgdl)
                     {
                         sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
@@ -1193,24 +1192,18 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
                 localtime_r(&ns->sensTime, &ns->sensTm);
 
                 ns->arrowAngle = 180;
-                if (strcmp(ns->sensDir, "DoubleDown") == 0 || strcmp(ns->sensDir, "DOUBLE_DOWN") == 0)
+                if (strcmp(ns->sensDir, "1") == 0)
                     ns->arrowAngle = 90;
-                else if (strcmp(ns->sensDir, "SingleDown") == 0 || strcmp(ns->sensDir, "SINGLE_DOWN") == 0)
-                    ns->arrowAngle = 75;
-                else if (strcmp(ns->sensDir, "FortyFiveDown") == 0 || strcmp(ns->sensDir, "FORTY_FIVE_DOWN") == 0)
+                else if (strcmp(ns->sensDir, "2") == 0 )
                     ns->arrowAngle = 45;
-                else if (strcmp(ns->sensDir, "Flat") == 0 || strcmp(ns->sensDir, "FLAT") == 0)
+                else if (strcmp(ns->sensDir, "3") == 0 )
                     ns->arrowAngle = 0;
-                else if (strcmp(ns->sensDir, "FortyFiveUp") == 0 || strcmp(ns->sensDir, "FORTY_FIVE_UP") == 0)
+                else if (strcmp(ns->sensDir, "4") == 0 )
                     ns->arrowAngle = -45;
-                else if (strcmp(ns->sensDir, "SingleUp") == 0 || strcmp(ns->sensDir, "SINGLE_UP") == 0)
-                    ns->arrowAngle = -75;
-                else if (strcmp(ns->sensDir, "DoubleUp") == 0 || strcmp(ns->sensDir, "DOUBLE_UP") == 0)
+                
+                else if (strcmp(ns->sensDir, "5") == 0 )
                     ns->arrowAngle = -90;
-                else if (strcmp(ns->sensDir, "NONE") == 0)
-                    ns->arrowAngle = 180;
-                else if (strcmp(ns->sensDir, "NOT COMPUTABLE") == 0)
-                    ns->arrowAngle = 180;
+               
 
                 Serial.print("sensDev = ");
                 Serial.println(ns->sensDev);
