@@ -80,6 +80,7 @@ struct Config
   bool nSenabled = false;
   char nSserver[128] = {0};
   char token[128] = {0};
+  char tomatoURl[128] = "";
 } config;
 
 ConfigManager configManager;
@@ -1049,6 +1050,333 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
   return err;
 }
 
+int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
+{
+  HTTPClient http;
+  char NSurl[128] =  "http://testapi.tomato.cool/m5stack/glycemic/ACD14A6B0B4643CC?start_time=1592870400000&end_time=1592956800000&device_id=xx0x";
+  int err = 0;
+  char tmpstr[32];
+ const char  *deviceid = WiFi.macAddress().c_str();;
+  Serial.print("deviceid:");
+  Serial.println(F(deviceid));
+
+
+  if ((WiFi.status() == WL_CONNECTED))
+  {
+    // configure target server and url
+    // strcat(NSurl, url);
+    // strcat(NSurl, sharID);
+    // strcat(NSurl, deviceid);
+
+    M5.Lcd.fillRect(icon_xpos[0], icon_ypos[0], 16, 16, BLACK);
+    drawIcon(icon_xpos[0], icon_ypos[0], (uint8_t *)wifi2_icon16x16, TFT_BLUE);
+
+    Serial.print("JSON query NSurl = \'");
+    Serial.print(NSurl);
+    Serial.print("\'\n");
+    http.begin(NSurl); //HTTP
+
+    Serial.print("[HTTP] GET...\n");
+    // start connection and send HTTP header
+    int httpCode = http.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+      // file found at server
+      if (httpCode == HTTP_CODE_OK)
+      {
+        String json = http.getString();
+        Serial.print(json);
+        // remove any non text characters (just for sure)
+        for (int i = 0; i < json.length(); i++)
+        {
+          // Serial.print(json.charAt(i), DEC); Serial.print(" = "); Serial.println(json.charAt(i));
+          if (json.charAt(i) < 32 /* || json.charAt(i)=='\\' */)
+          {
+            json.setCharAt(i, 32);
+          }
+        }
+        // json.replace("\\n"," ");
+        // invalid Unicode character defined by Ascensia Diabetes Care Bluetooth Glucose Meter
+        // ArduinoJSON does not accept any unicode surrogate pairs like \u0032 or \u0000
+        json.replace("\\u0000", " ");
+        json.replace("\\u0032", " ");
+        // Serial.println(json);
+        // const size_t capacity = JSON_ARRAY_SIZE(10) + 10*JSON_OBJECT_SIZE(19) + 3840;
+        // Serial.print("JSON size needed= "); Serial.print(capacity);
+        Serial.print("Free Heap = ");
+        Serial.println(ESP.getFreeHeap());
+        DeserializationError JSONerr = deserializeJson(JSONdoc, json);
+        Serial.println("JSON deserialized OK");
+        JsonArray arr = JSONdoc["data"]["glycemic_list"].as<JsonArray>();
+        Serial.print("JSON array size = ");
+        Serial.println(arr.size());
+            if (JSONerr || ( arr.size() == 0))
+            { //Check for errors in parsing
+                if (JSONerr)
+                {
+                    err = 1001; // "JSON parsing failed"
+                }
+                else
+                {
+                    err = 1002; // "No data from Nightscout"
+                }
+                addErrorLog(err);
+            }
+            else
+            {
+                JsonObject obj;
+                if (ns->is_Sugarmate == 0)
+                {
+                    // Nightscout values
+
+                    int sgvindex = 0;
+                    do
+                    {
+                        obj = JSONdoc["data"].as<JsonObject>();
+                        sgvindex++;
+                    } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
+                    sgvindex--;
+                    if (sgvindex < 0 || sgvindex > (arr.size() - 1))
+                        sgvindex = 0;
+                    // strlcpy(ns->sensDev, JSONdoc[sgvindex]["device"] | "N/A", 64);
+                    ns->is_xDrip = obj.containsKey("xDrip_raw");
+                    ns->rawtime = JSONdoc[sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
+                    ns->sensTime = ns->rawtime / 1000;                       // no milliseconds, since 2000 would be - 946684800, but ok
+                    strlcpy(ns->sensDir, JSONdoc[sgvindex]["direction"] | "N/A", 32);
+                    ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
+                    for (int i = 0; i <= 9; i++)
+                    {
+                        ns->last10sgv[i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
+                        // ns->last10sgv[i] /= 18.0;
+                    }
+                }
+                else
+                {
+                    // Sugarmate values
+                    strcpy(ns->sensDev, "Sugarmate");
+                    ns->is_xDrip = 0;
+                    ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
+                    time_t tmptime = JSONdoc["data"]["glycemic_time"];  // time in milliseconds since 1970
+                    if (ns->sensTime != tmptime)
+                    {
+                        for (int i = 0; i < 10; i++)
+                        { // add new value and shift buffer
+                            ns->last10sgv[i] = ns->last10sgv[i - 1];
+                        }
+                        // ns->last10sgv[0] = ns->sensSgv;
+                        ns->sensTime = tmptime;
+                    }
+                    ns->rawtime = (long long)ns->sensTime * (long long)1000; // possibly not needed, but to make the structure values complete
+                    strlcpy(ns->sensDir, JSONdoc["trend_words"] | "N/A", 32);
+                    ns->delta_mgdl = JSONdoc["data"]["change"]; // get value of sensor measurement
+                    ns->delta_absolute = ns->delta_mgdl;
+                    ns->delta_interpolated = 0;
+                    ns->delta_scaled = ns->delta_mgdl / 18.0;
+                    if (cfg.show_mgdl)
+                    {
+                        sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
+                    }
+                    else
+                    {
+                        sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
+                    }
+                }
+                ns->sensSgvMgDl = ns->sensSgv;
+                // internally we work in mmol/L
+                // ns->sensSgv /= 18.0;
+
+                localtime_r(&ns->sensTime, &ns->sensTm);
+
+                ns->arrowAngle = 180;
+                if (strcmp(ns->sensDir, "DoubleDown") == 0 || strcmp(ns->sensDir, "DOUBLE_DOWN") == 0)
+                    ns->arrowAngle = 90;
+                else if (strcmp(ns->sensDir, "SingleDown") == 0 || strcmp(ns->sensDir, "SINGLE_DOWN") == 0)
+                    ns->arrowAngle = 75;
+                else if (strcmp(ns->sensDir, "FortyFiveDown") == 0 || strcmp(ns->sensDir, "FORTY_FIVE_DOWN") == 0)
+                    ns->arrowAngle = 45;
+                else if (strcmp(ns->sensDir, "Flat") == 0 || strcmp(ns->sensDir, "FLAT") == 0)
+                    ns->arrowAngle = 0;
+                else if (strcmp(ns->sensDir, "FortyFiveUp") == 0 || strcmp(ns->sensDir, "FORTY_FIVE_UP") == 0)
+                    ns->arrowAngle = -45;
+                else if (strcmp(ns->sensDir, "SingleUp") == 0 || strcmp(ns->sensDir, "SINGLE_UP") == 0)
+                    ns->arrowAngle = -75;
+                else if (strcmp(ns->sensDir, "DoubleUp") == 0 || strcmp(ns->sensDir, "DOUBLE_UP") == 0)
+                    ns->arrowAngle = -90;
+                else if (strcmp(ns->sensDir, "NONE") == 0)
+                    ns->arrowAngle = 180;
+                else if (strcmp(ns->sensDir, "NOT COMPUTABLE") == 0)
+                    ns->arrowAngle = 180;
+
+                Serial.print("sensDev = ");
+                Serial.println(ns->sensDev);
+                Serial.print("sensTime = ");
+                Serial.print(ns->sensTime);
+                sprintf(tmpstr, " (JSON %lld)", (long long)ns->rawtime);
+                Serial.print(tmpstr);
+                sprintf(tmpstr, " = %s", ctime(&ns->sensTime));
+                Serial.print(tmpstr);
+                Serial.print("sensSgv = ");
+                Serial.println(ns->sensSgv);
+                Serial.print("sensDir = ");
+                Serial.println(ns->sensDir);
+                // Serial.print(ns->sensTm.tm_year+1900); Serial.print(" / "); Serial.print(ns->sensTm.tm_mon+1); Serial.print(" / "); Serial.println(ns->sensTm.tm_mday);
+                Serial.print("Sensor time: ");
+                Serial.print(ns->sensTm.tm_hour);
+                Serial.print(":");
+                Serial.print(ns->sensTm.tm_min);
+                Serial.print(":");
+                Serial.print(ns->sensTm.tm_sec);
+                Serial.print(" DST ");
+                Serial.println(ns->sensTm.tm_isdst);
+            }
+        }
+        else
+        {
+            addErrorLog(httpCode);
+            err = httpCode;
+        }
+      }
+      else
+      {
+        addErrorLog(httpCode);
+        err = httpCode;
+      }
+      http.end();
+
+      if (err != 0)
+      {
+        Serial.printf("Returnining with error %d\n", err);
+        return err;
+      }
+    }
+  
+
+  //     if (ns->is_Sugarmate)
+  //         return 0; // no second query if using Sugarmate
+
+  //     // the second query
+  //     if (strncmp(url, "http", 4))
+  //         strcpy(NSurl, "https://");
+  //     else
+  //         strcpy(NSurl, "");
+  //     strcat(NSurl, url);
+  //     strcat(NSurl, "/api/v2/properties/iob,cob,delta,loop,basal");
+  //     if (strlen(token) > 0)
+  //     {
+  //         strcat(NSurl, "&token=");
+  //         strcat(NSurl, token);
+  //     }
+
+  //     M5.Lcd.fillRect(icon_xpos[0], icon_ypos[0], 16, 16, BLACK);
+  //     drawIcon(icon_xpos[0], icon_ypos[0], (uint8_t *)wifi1_icon16x16, TFT_BLUE);
+
+  //     Serial.print("Properties query NSurl = \'");
+  //     Serial.print(NSurl);
+  //     Serial.print("\'\n");
+  //     http.begin(NSurl); //HTTP
+  //     Serial.print("[HTTP] GET properties...\n");
+  //     httpCode = http.GET();
+  //     if (httpCode > 0)
+  //     {
+  //         Serial.printf("[HTTP] GET properties... code: %d\n", httpCode);
+  //         if (httpCode == HTTP_CODE_OK)
+  //         {
+  //             // const char* propjson = "{\"iob\":{\"iob\":0,\"activity\":0,\"source\":\"OpenAPS\",\"device\":\"openaps://Spike iPhone 8 Plus\",\"mills\":1557613521000,\"display\":\"0\",\"displayLine\":\"IOB: 0U\"},\"cob\":{\"cob\":0,\"source\":\"OpenAPS\",\"device\":\"openaps://Spike iPhone 8 Plus\",\"mills\":1557613521000,\"treatmentCOB\":{\"decayedBy\":\"2019-05-11T23:05:00.000Z\",\"isDecaying\":0,\"carbs_hr\":20,\"rawCarbImpact\":0,\"cob\":7,\"lastCarbs\":{\"_id\":\"5cd74c26156712edb4b32455\",\"enteredBy\":\"Martin\",\"eventType\":\"Carb Correction\",\"reason\":\"\",\"carbs\":7,\"duration\":0,\"created_at\":\"2019-05-11T22:24:00.000Z\",\"mills\":1557613440000,\"mgdl\":67}},\"display\":0,\"displayLine\":\"COB: 0g\"},\"delta\":{\"absolute\":-4,\"elapsedMins\":4.999483333333333,\"interpolated\":false,\"mean5MinsAgo\":69,\"mgdl\":-4,\"scaled\":-0.2,\"display\":\"-0.2\",\"previous\":{\"mean\":69,\"last\":69,\"mills\":1557613221946,\"sgvs\":[{\"mgdl\":69,\"mills\":1557613221946,\"device\":\"MIAOMIAO\",\"direction\":\"Flat\",\"filtered\":92588,\"unfiltered\":92588,\"noise\":1,\"rssi\":100}]}}}";
+  //             String propjson = http.getString();
+  //             // remove any non text characters (just for sure)
+  //             for (int i = 0; i < propjson.length(); i++)
+  //             {
+  //                 // Serial.print(propjson.charAt(i), DEC); Serial.print(" = "); Serial.println(propjson.charAt(i));
+  //                 if (propjson.charAt(i) < 32 /* || propjson.charAt(i)=='\\' */)
+  //                 {
+  //                     propjson.setCharAt(i, 32);
+  //                 }
+  //             }
+  //             // propjson.replace("\\n"," ");
+  //             // invalid Unicode character defined by Ascensia Diabetes Care Bluetooth Glucose Meter
+  //             // ArduinoJSON does not accept any unicode surrogate pairs like \u0032 or \u0000
+  //             propjson.replace("\\u0000", " ");
+  //             propjson.replace("\\u0032", " ");
+  //             DeserializationError propJSONerr = deserializeJson(JSONdoc, propjson);
+  //             if (propJSONerr)
+  //             {
+  //                 err = 1003; // "JSON2 parsing failed"
+  //                 addErrorLog(err);
+  //             }
+  //             else
+  //             {
+  //                 Serial.println("Deserialized the second JSON and OK");
+  //                 JsonObject iob = JSONdoc["iob"];
+  //                 ns->iob = iob["iob"];                                              // 0
+  //                 strncpy(ns->iob_display, iob["display"] | "N/A", 16);              // 0
+  //                 strncpy(ns->iob_displayLine, iob["displayLine"] | "IOB: N/A", 16); // "IOB: 0U"
+  //                 // Serial.println("IOB OK");
+
+  //                 JsonObject cob = JSONdoc["cob"];
+  //                 ns->cob = cob["cob"];                                              // 0
+  //                 strncpy(ns->cob_display, cob["display"] | "N/A", 16);              // 0
+  //                 strncpy(ns->cob_displayLine, cob["displayLine"] | "COB: N/A", 16); // "COB: 0g"
+  //                 // Serial.println("COB OK");
+
+  //                 JsonObject delta = JSONdoc["delta"];
+  //                 ns->delta_absolute = delta["absolute"];                // -4
+  //                 ns->delta_elapsedMins = delta["elapsedMins"];          // 4.999483333333333
+  //                 ns->delta_interpolated = delta["interpolated"];        // false
+  //                 ns->delta_mean5MinsAgo = delta["mean5MinsAgo"];        // 69
+  //                 ns->delta_mgdl = delta["mgdl"];                        // -4
+  //                 ns->delta_scaled = delta["scaled"];                    // -0.2
+  //                 strncpy(ns->delta_display, delta["display"] | "", 16); // "-0.2"
+  //                 // Serial.println("DELTA OK");
+
+  //                 JsonObject loop_obj = JSONdoc["loop"];
+  //                 JsonObject loop_display = loop_obj["display"];
+  //                 strncpy(tmpstr, loop_display["symbol"] | "?", 4); // "⌁"
+  //                 ns->loop_display_symbol = tmpstr[0];
+  //                 strncpy(ns->loop_display_code, loop_display["code"] | "N/A", 16);   // "enacted"
+  //                 strncpy(ns->loop_display_label, loop_display["label"] | "N/A", 16); // "Enacted"
+  //                 // Serial.println("LOOP OK");
+
+  //                 JsonObject basal = JSONdoc["basal"];
+  //                 strncpy(ns->basal_display, basal["display"] | "N/A", 16); // "T: 0.950U"
+  //                 // Serial.println("BASAL OK");
+
+  //                 JsonObject basal_current_doc = JSONdoc["basal"]["current"];
+  //                 ns->basal_current = basal_current_doc["basal"];                   // 0.1
+  //                 ns->basal_tempbasal = basal_current_doc["tempbasal"];             // 0.1
+  //                 ns->basal_combobolusbasal = basal_current_doc["combobolusbasal"]; // 0
+  //                 ns->basal_totalbasal = basal_current_doc["totalbasal"];           // 0.1
+  //                                                                                   // Serial.println("LOOP OK");
+  //             }
+  //         }
+  //         else
+  //         {
+  //             addErrorLog(httpCode);
+  //             err = httpCode;
+  //         }
+  //     }
+  //     else
+  //     {
+  //         addErrorLog(httpCode);
+  //         err = httpCode;
+  //     }
+  //     http.end();
+  // }
+  // else
+  // {
+  //     // WiFi not connected
+  //     ESP.restart();
+  // }
+
+  // M5.Lcd.fillRect(icon_xpos[0], icon_ypos[0], 16, 16, BLACK);
+
+  return err;
+}
+
 void draw_page()
 {
   char tmpstr[255];
@@ -1066,7 +1394,7 @@ void draw_page()
     // M5.Lcd.fillScreen(BLACK);
     // M5.Lcd.fillRect(230, 110, 90, 100, TFT_BLACK);
 
-    // readNightscout(cfg.url, cfg.token, &ns);
+    readNightscout(config.tomatoURl, config.tomatoShareID, &ns);
 
     M5.Lcd.setFreeFont(FSSB12);
     M5.Lcd.setTextSize(1);
@@ -1937,7 +2265,6 @@ void loop()
   // -- doLoop should be called as frequently as possible.
   buttons_test();
 
-
   // update glycemia every 15s
   if (WiFi.status() == WL_CONNECTED)
   {
@@ -1946,7 +2273,8 @@ void loop()
       /* if(dispPage==2)
       M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
     */
-      readNightscout(cfg.url, cfg.token, &ns);
+      readTomatoRemote(cfg.url, cfg.token, &ns);
+      // tomato  ot nightscout
       draw_page();
       msCount = millis();
       Serial.print("msCount = ");
