@@ -1049,23 +1049,22 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
 
   return err;
 }
-
+////////////////////////////////////////////////////////////////
 int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
 {
   HTTPClient http;
-  char NSurl[128] =  "http://testapi.tomato.cool/m5stack/glycemic/ACD14A6B0B4643CC?start_time=1592870400000&end_time=1592956800000&device_id=";
+  char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/ACD14A6B0B4643CC?start_time=1592870400000&end_time=1592956800000&device_id=";
   int err = 0;
   char tmpstr[32];
- const char  *deviceid = WiFi.macAddress().c_str();;
+  const char *deviceid = WiFi.macAddress().c_str();
+  ;
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
-  strcat(NSurl,deviceid);
-
+  strcat(NSurl, deviceid);
 
   if ((WiFi.status() == WL_CONNECTED))
   {
     // configure target server and url
-   
 
     M5.Lcd.fillRect(icon_xpos[0], icon_ypos[0], 16, 16, BLACK);
     drawIcon(icon_xpos[0], icon_ypos[0], (uint8_t *)wifi2_icon16x16, TFT_BLUE);
@@ -1114,124 +1113,122 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
         JsonArray arr = JSONdoc["data"]["glycemic_list"].as<JsonArray>();
         Serial.print("JSON array size = ");
         Serial.println(arr.size());
-            if (JSONerr || ( arr.size() == 0))
-            { //Check for errors in parsing
-                if (JSONerr)
-                {
-                    err = 1001; // "JSON parsing failed"
-                }
-                else
-                {
-                    err = 1002; // "No data from Nightscout"
-                }
-                addErrorLog(err);
-            }
-            else
-            {
-                JsonObject obj;
-                if (ns->is_Sugarmate == 0)
-                {
-                    // Nightscout values
-
-                    int sgvindex = 0;
-                    do
-                    {
-                        obj = JSONdoc["data"].as<JsonObject>();
-                        sgvindex++;
-                    } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
-                    sgvindex--;
-                    if (sgvindex < 0 || sgvindex > (arr.size() - 1))
-                        sgvindex = 0;
-                    // strlcpy(ns->sensDev, JSONdoc[sgvindex]["device"] | "N/A", 64);
-                    ns->is_xDrip = obj.containsKey("xDrip_raw");
-                    ns->rawtime = JSONdoc[sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
-                    ns->sensTime = ns->rawtime / 1000;                       // no milliseconds, since 2000 would be - 946684800, but ok
-                    strlcpy(ns->sensDir, JSONdoc[sgvindex]["direction"] | "N/A", 32);
-                    ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
-                    for (int i = 0; i <= 9; i++)
-                    {
-                        ns->last10sgv[i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
-                        // ns->last10sgv[i] /= 18.0;
-                    }
-                }
-                else
-                {
-                    // Sugarmate values
-                    strcpy(ns->sensDev, "Sugarmate");
-                    ns->is_xDrip = 0;
-                    ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
-                    time_t tmptime = JSONdoc["data"]["glycemic_time"];  // time in milliseconds since 1970
-                    if (ns->sensTime != tmptime)
-                    {
-                        for (int i = 9; i > 0; i--)
-                        { // add new value and shift buffer
-                            ns->last10sgv[i] = ns->last10sgv[i - 1];
-                        }
-                        // ns->last10sgv[0] = ns->sensSgv;
-                        ns->sensTime = tmptime;
-                    }
-                    ns->rawtime = (long long)ns->sensTime * (long long)1000; // possibly not needed, but to make the structure values complete
-                    strlcpy(ns->sensDir, JSONdoc["data"]["arrow"] | "0", 32);
-                    ns->delta_mgdl = JSONdoc["data"]["change"]; // get value of sensor measurement
-                    ns->delta_absolute = ns->delta_mgdl;
-                    ns->delta_interpolated = 0;
-                    ns->delta_scaled = ns->delta_mgdl;
-                    if (cfg.show_mgdl)
-                    {
-                        sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
-                    }
-                    else
-                    {
-                        sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
-                    }
-                }
-                ns->sensSgvMgDl = ns->sensSgv;
-                // internally we work in mmol/L
-                // ns->sensSgv /= 18.0;
-
-                localtime_r(&ns->sensTime, &ns->sensTm);
-
-                ns->arrowAngle = 180;
-                if (strcmp(ns->sensDir, "1") == 0)
-                    ns->arrowAngle = 90;
-                else if (strcmp(ns->sensDir, "2") == 0 )
-                    ns->arrowAngle = 45;
-                else if (strcmp(ns->sensDir, "3") == 0 )
-                    ns->arrowAngle = 0;
-                else if (strcmp(ns->sensDir, "4") == 0 )
-                    ns->arrowAngle = -45;
-                
-                else if (strcmp(ns->sensDir, "5") == 0 )
-                    ns->arrowAngle = -90;
-               
-
-                Serial.print("sensDev = ");
-                Serial.println(ns->sensDev);
-                Serial.print("sensTime = ");
-                Serial.print(ns->sensTime);
-                sprintf(tmpstr, " (JSON %lld)", (long long)ns->rawtime);
-                Serial.print(tmpstr);
-                sprintf(tmpstr, " = %s", ctime(&ns->sensTime));
-                Serial.print(tmpstr);
-                Serial.print("sensSgv = ");
-                Serial.println(ns->sensSgv);
-                Serial.print("sensDir = ");
-                Serial.println(ns->sensDir);
-                // Serial.print(ns->sensTm.tm_year+1900); Serial.print(" / "); Serial.print(ns->sensTm.tm_mon+1); Serial.print(" / "); Serial.println(ns->sensTm.tm_mday);
-                Serial.print("Sensor time: ");
-                Serial.print(ns->sensTm.tm_hour);
-                Serial.print(":");
-                Serial.print(ns->sensTm.tm_min);
-                Serial.print(":");
-                Serial.print(ns->sensTm.tm_sec);
-                Serial.print(" DST ");
-                Serial.println(ns->sensTm.tm_isdst);
-            }
+        if (JSONerr || (arr.size() == 0))
+        { //Check for errors in parsing
+          if (JSONerr)
+          {
+            err = 1001; // "JSON parsing failed"
+          }
+          else
+          {
+            err = 1002; // "No data from Nightscout"
+          }
+          addErrorLog(err);
         }
         else
         {
-            addErrorLog(httpCode);
-            err = httpCode;
+          JsonObject obj;
+          if (ns->is_Sugarmate == 0)
+          {
+            // Nightscout values
+
+            int sgvindex = 0;
+            do
+            {
+              obj = JSONdoc["data"].as<JsonObject>();
+              sgvindex++;
+            } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
+            sgvindex--;
+            if (sgvindex < 0 || sgvindex > (arr.size() - 1))
+              sgvindex = 0;
+            strlcpy(ns->sensDev, "Tomato", 64);
+            ns->is_xDrip = obj.containsKey("xDrip_raw");
+            ns->rawtime = JSONdoc["data"]["glycemic_list"][sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
+            ns->sensTime = ns->rawtime / 1000;// no milliseconds, since 2000 would be - 946684800, but ok
+            int arrowNum = JSONdoc["data"]["arrow"];
+            String arrowStr = String(arrowNum);
+            strlcpy(ns->sensDir, arrowStr.c_str(), 32);
+            ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
+            for (int i = 9; i >= 0; i--)
+            {
+              ns->last10sgv[i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
+              // ns->last10sgv[i] /= 18.0;
+            }
+          }
+          else
+          {
+            // Sugarmate values
+            strcpy(ns->sensDev, "Sugarmate");
+            ns->is_xDrip = 0;
+            ns->sensSgv = JSONdoc["data"]["glycemic"];         // get value of sensor measurement
+            time_t tmptime = JSONdoc["data"]["glycemic_time"]; // time in milliseconds since 1970
+            if (ns->sensTime != tmptime)
+            {
+              for (int i = 9; i > 0; i--)
+              { // add new value and shift buffer
+                ns->last10sgv[i] = ns->last10sgv[i - 1];
+              }
+              // ns->last10sgv[0] = ns->sensSgv;
+              ns->sensTime = tmptime;
+            }
+            ns->rawtime = (long long)ns->sensTime * (long long)1000; // possibly not needed, but to make the structure values complete
+            int arrowNum = JSONdoc["data"]["arrow"];
+            String arrowStr = String(arrowNum);
+            strlcpy(ns->sensDir, arrowStr.c_str(), 32);
+            strlcpy(ns->sensDir, arrowStr, 32);
+            ns->delta_mgdl = JSONdoc["data"]["change"]; // get value of sensor measurement
+            ns->delta_absolute = ns->delta_mgdl;
+            ns->delta_interpolated = 0;
+            ns->delta_scaled = ns->delta_mgdl;
+            if (cfg.show_mgdl)
+            {
+              sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
+            }
+            else
+            {
+              sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
+            }
+          }
+          ns->sensSgvMgDl = ns->sensSgv;
+          // internally we work in mmol/L
+          // ns->sensSgv /= 18.0;
+
+          localtime_r(&ns->sensTime, &ns->sensTm);
+
+          ns->arrowAngle = 180;
+          if (strcmp(ns->sensDir, "1") == 0)
+            ns->arrowAngle = 90;
+          else if (strcmp(ns->sensDir, "2") == 0)
+            ns->arrowAngle = 45;
+          else if ((strcmp(ns->sensDir, "3") == 0) || (strcmp(ns->sensDir, "0") == 0))
+            ns->arrowAngle = 0;
+          else if (strcmp(ns->sensDir, "4") == 0)
+            ns->arrowAngle = -45;
+
+          else if (strcmp(ns->sensDir, "5") == 0)
+            ns->arrowAngle = -90;
+
+          Serial.print("sensDev = ");
+          Serial.println(ns->sensDev);
+          Serial.print("sensTime = ");
+          Serial.print(ns->sensTime);
+          sprintf(tmpstr, " (JSON %lld)", (long long)ns->rawtime);
+          Serial.print(tmpstr);
+          sprintf(tmpstr, " = %s", ctime(&ns->sensTime));
+          Serial.print(tmpstr);
+          Serial.print("sensSgv = ");
+          Serial.println(ns->sensSgv);
+          Serial.print("sensDir = ");
+          Serial.println(ns->sensDir);
+          // Serial.print(ns->sensTm.tm_year+1900); Serial.print(" / "); Serial.print(ns->sensTm.tm_mon+1); Serial.print(" / "); Serial.println(ns->sensTm.tm_mday);
+          Serial.print("Sensor time: ");
+          Serial.print(ns->sensTm.tm_hour);
+          Serial.print(":");
+          Serial.print(ns->sensTm.tm_min);
+          Serial.print(":");
+          Serial.print(ns->sensTm.tm_sec);
+          Serial.print(" DST ");
+          Serial.println(ns->sensTm.tm_isdst);
         }
       }
       else
@@ -1239,15 +1236,20 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
         addErrorLog(httpCode);
         err = httpCode;
       }
-      http.end();
-
-      if (err != 0)
-      {
-        Serial.printf("Returnining with error %d\n", err);
-        return err;
-      }
     }
-  
+    else
+    {
+      addErrorLog(httpCode);
+      err = httpCode;
+    }
+    http.end();
+
+    if (err != 0)
+    {
+      Serial.printf("Returnining with error %d\n", err);
+      return err;
+    }
+  }
 
   //     if (ns->is_Sugarmate)
   //         return 0; // no second query if using Sugarmate
@@ -1387,7 +1389,7 @@ void draw_page()
     // M5.Lcd.fillScreen(BLACK);
     // M5.Lcd.fillRect(230, 110, 90, 100, TFT_BLACK);
 
-    readNightscout(config.tomatoURl, config.tomatoShareID, &ns);
+    readTomatoRemote(config.tomatoURl, config.tomatoShareID, &ns);
 
     M5.Lcd.setFreeFont(FSSB12);
     M5.Lcd.setTextSize(1);
