@@ -81,6 +81,7 @@ struct Config
   char nSserver[128] = {0};
   char token[128] = {0};
   char tomatoURl[128] = "";
+  bool tomatoFirst = true;
 } config;
 
 ConfigManager configManager;
@@ -1054,18 +1055,40 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
   return err;
 }
 ////////////////////////////////////////////////////////////////
-int readTomatoRemote( char *sharID, struct NSinfo *ns)
+int readTomatoRemote(const char * shareID, struct NSinfo *ns)
 {
   HTTPClient http;
   char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/";
   int err = 0;
   char tmpstr[32];
   const char *deviceid = WiFi.macAddress().c_str();
-  
-  
+  // unsigned long endTime = esp_timer_get_time() * 1000000;
+
+  /**
+   * Only for test
+  */
+  const  char *  endTime = "1592956800000";
+  Serial.print("endTime:");
+  Serial.println(endTime);
+  const  char * 	startTime = "1592870400000";
+  Serial.print("startTime:");
+  Serial.println(startTime);
+
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
+  strcat(NSurl, shareID);
+  strcat(NSurl, "?device_id=");
   strcat(NSurl, deviceid);
+
+   /**
+   * Only for test
+  */
+  strcat(NSurl, "&start_time=");
+  strcat(NSurl, String(startTime).c_str());
+  strcat(NSurl, "&end_time=");
+  strcat(NSurl, String(endTime).c_str());
+
+  
 
   if ((WiFi.status() == WL_CONNECTED))
   {
@@ -1267,7 +1290,7 @@ void draw_page()
     // M5.Lcd.fillScreen(BLACK);
     // M5.Lcd.fillRect(230, 110, 90, 100, TFT_BLACK);
 
-    readTomatoRemote(config.tomatoURl, config.tomatoShareID, &ns);
+    readTomatoRemote(config.tomatoShareID, &ns);
     // readNightscout(cfg.url, cfg.token, &ns);
 
     M5.Lcd.setFreeFont(FSSB12);
@@ -1933,7 +1956,7 @@ void draw_page()
             strcpy(tmpStr, "JSON parsing failed");
             break;
           case 1002:
-            strcpy(tmpStr, "No data from Nightscout");
+            strcpy(tmpStr, "No data from Server");
             break;
           case 1003:
             strcpy(tmpStr, "JSON2 parsing failed");
@@ -1973,13 +1996,15 @@ void serverForConfig()
   //   .addParameter("server", config.server, 128, new Metadata("Server"))
   //   .addParameter("port", &config.port, new Metadata("Port", "Default value 1883"));
   configManager.addParameterGroup("Nightscout", new Metadata("Nightscout Configuration", "Configuration of Nightscout URL and tokens"))
-      .addParameter("enabled", &config.nSenabled, new Metadata("Enabled"))
       .addParameter("server", config.nSserver, 128, new Metadata("Server"))
       .addParameter("token", config.token, 64, new Metadata("Token"));
 
   configManager.addParameterGroup("TomatoServer", new Metadata("Tomato Remote Configuration", "Configuration of Tomato remote shareID"))
-      .addParameter("enabled", &config.tomatoEnabled, new Metadata("Enabled"))
       .addParameter("shareid", config.tomatoShareID, 128, new Metadata("ShareID"));
+
+  configManager.addParameterGroup("Genaral", new Metadata("Genaral Settings", ""))
+      .addParameter("优先使用Tomato", &config.tomatoFirst, new Metadata("优先是用Tomato"));
+      
 
   configManager.begin(config);
 }
@@ -2157,7 +2182,7 @@ void loop()
       /* if(dispPage==2)
       M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
     */
-      readTomatoRemote(cfg.url, cfg.token, &ns);
+      readTomatoRemote(config.tomatoShareID, &ns);
       // readNightscout(cfg.url, cfg.token, &ns);
       // tomato  ot nightscout
       draw_page();
