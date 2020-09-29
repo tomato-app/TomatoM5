@@ -286,7 +286,11 @@ void handleAlarmsInfoLine(struct NSinfo *ns)
   }
   M5.Lcd.setTextSize(1);
   M5.Lcd.setFreeFont(FSSB12);
-  // Serial.print("sensSgv="); Serial.print(sensSgv); Serial.print(", cfg.snd_alarm="); Serial.println(cfg.snd_alarm);
+  
+  /**
+   * TODO:
+   * - when use tomato, gert alarm via range 
+  */
   if ((ns->sensSgv <= cfg.snd_alarm) && (ns->sensSgv >= 0.1))
   {
     // red alarm state
@@ -1050,14 +1054,15 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
   return err;
 }
 ////////////////////////////////////////////////////////////////
-int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
+int readTomatoRemote( char *sharID, struct NSinfo *ns)
 {
   HTTPClient http;
-  char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/ACD14A6B0B4643CC?start_time=1592870400000&end_time=1592956800000&device_id=";
+  char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/";
   int err = 0;
   char tmpstr[32];
   const char *deviceid = WiFi.macAddress().c_str();
-  ;
+  
+  
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
   strcat(NSurl, deviceid);
@@ -1128,61 +1133,61 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
         else
         {
           JsonObject obj;
-          
-            // Nightscout values
 
-            int sgvindex = 0;
-            do
-            {
-              obj = JSONdoc["data"].as<JsonObject>();
-              sgvindex++;
-            } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
-            sgvindex--;
-            if (sgvindex < 0 || sgvindex > (arr.size() - 1))
-              sgvindex = 0;
-            strlcpy(ns->sensDev, "Tomato", 64);
-            ns->is_xDrip = obj.containsKey("xDrip_raw");
-            ns->rawtime = JSONdoc["data"]["glycemic_list"][sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
-            ns->sensTime = ns->rawtime / 1000;                                                // no milliseconds, since 2000 would be - 946684800, but ok
-            int arrowNum = JSONdoc["data"]["arrow"];
-            String arrowStr = String(arrowNum);
-            strlcpy(ns->sensDir, arrowStr.c_str(), 32);
-            float change = JSONdoc["data"]["change"];
-            float changeMgdl = change * 18.0032;
-            Serial.print("change:");
-            Serial.println(change);
-            Serial.print("changeMgdl:");
-            Serial.println(changeMgdl);
+          // Nightscout values
 
-            ns->delta_mgdl = changeMgdl; // get value of sensor measurement
-            ns->delta_scaled = change;
+          int sgvindex = 0;
+          do
+          {
+            obj = JSONdoc["data"].as<JsonObject>();
+            sgvindex++;
+          } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
+          sgvindex--;
+          if (sgvindex < 0 || sgvindex > (arr.size() - 1))
+            sgvindex = 0;
+          strlcpy(ns->sensDev, "Tomato", 64);
+          ns->is_xDrip = obj.containsKey("xDrip_raw");
+          ns->rawtime = JSONdoc["data"]["glycemic_list"][sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
+          ns->sensTime = ns->rawtime / 1000;                                                // no milliseconds, since 2000 would be - 946684800, but ok
+          int arrowNum = JSONdoc["data"]["arrow"];
+          String arrowStr = String(arrowNum);
+          strlcpy(ns->sensDir, arrowStr.c_str(), 32);
+          float change = JSONdoc["data"]["change"];
+          float changeMgdl = change * 18.0032;
+          Serial.print("change:");
+          Serial.println(change);
+          Serial.print("changeMgdl:");
+          Serial.println(changeMgdl);
 
-            Serial.print("delta_mgdl:");
-            Serial.println(ns->delta_mgdl);
-            Serial.print("delta_scaled:");
-            Serial.println(ns->delta_scaled);
-            if (cfg.show_mgdl)
-            {
-              sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
-            }
-            else
-            {
-              sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
-            }
-          
+          ns->delta_mgdl = changeMgdl; // get value of sensor measurement
+          ns->delta_scaled = change;
+
+          Serial.print("delta_mgdl:");
+          Serial.println(ns->delta_mgdl);
+          Serial.print("delta_scaled:");
+          Serial.println(ns->delta_scaled);
+          if (cfg.show_mgdl)
+          {
+            sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
+          }
+          else
+          {
+            sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
+          }
+
           Serial.print("ns->delta_display");
           Serial.print(ns->delta_display);
           ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
-          for (int i = 9; i >= 0; i--)
+          for (int i = 0; i < 10; i++)
           {
-            ns->last10sgv[i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
+            ns->last10sgv[9-i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
             // ns->last10sgv[i] /= 18.0;
           }
         }
-        
+
         Serial.print("ns->delta_display");
         Serial.print(ns->delta_display);
-        ns->sensSgvMgDl = ns->sensSgv;
+        ns->sensSgvMgDl = ns->sensSgv * 18.032;
         // internally we work in mmol/L
         // ns->sensSgv /= 18.0;
 
@@ -1197,7 +1202,6 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
           ns->arrowAngle = 0;
         else if (strcmp(ns->sensDir, "4") == 0)
           ns->arrowAngle = -45;
-
         else if (strcmp(ns->sensDir, "5") == 0)
           ns->arrowAngle = -90;
 
@@ -1222,29 +1226,28 @@ int readTomatoRemote(char *url, char *sharID, struct NSinfo *ns)
         Serial.print(ns->sensTm.tm_sec);
         Serial.print(" DST ");
         Serial.println(ns->sensTm.tm_isdst);
-      
+      }
+      else
+      {
+        addErrorLog(httpCode);
+        err = httpCode;
+      }
     }
     else
     {
       addErrorLog(httpCode);
       err = httpCode;
     }
-  }
-  else
-  {
-    addErrorLog(httpCode);
-    err = httpCode;
-  }
-  http.end();
+    http.end();
 
-  if (err != 0)
-  {
-    Serial.printf("Returnining with error %d\n", err);
-    return err;
+    if (err != 0)
+    {
+      Serial.printf("Returnining with error %d\n", err);
+      return err;
+    }
   }
-}
 
-return err;
+  return err;
 }
 
 void draw_page()
@@ -1265,6 +1268,7 @@ void draw_page()
     // M5.Lcd.fillRect(230, 110, 90, 100, TFT_BLACK);
 
     readTomatoRemote(config.tomatoURl, config.tomatoShareID, &ns);
+    // readNightscout(cfg.url, cfg.token, &ns);
 
     M5.Lcd.setFreeFont(FSSB12);
     M5.Lcd.setTextSize(1);
@@ -1431,6 +1435,11 @@ void draw_page()
     M5.Lcd.drawString("min", 260, 70, GFXFF);
 
     uint16_t glColor = TFT_GREEN;
+    /**
+     * Get the  color of bg
+     * TODO:
+     * - if use tomato, get the color via  the value of range
+     * */ 
     if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
     {
       glColor = TFT_YELLOW; // warning is YELLOW
@@ -1449,6 +1458,11 @@ void draw_page()
     M5.Lcd.setTextColor(glColor, TFT_BLACK);
     char sensSgvStr[30];
     int smaller_font = 0;
+
+    /**
+     * TODO:
+     * if use tomato, get the unit via "bgunit"
+     */
     if (cfg.show_mgdl)
     {
       sprintf(sensSgvStr, "%3.0f", ns.sensSgvMgDl);
@@ -1965,7 +1979,7 @@ void serverForConfig()
 
   configManager.addParameterGroup("TomatoServer", new Metadata("Tomato Remote Configuration", "Configuration of Tomato remote shareID"))
       .addParameter("enabled", &config.tomatoEnabled, new Metadata("Enabled"))
-      .addParameter("shareid", config.tomatoShareID, 128, new Metadata("SHareID"));
+      .addParameter("shareid", config.tomatoShareID, 128, new Metadata("ShareID"));
 
   configManager.begin(config);
 }
@@ -1975,7 +1989,7 @@ void showGuidelines()
   M5.Lcd.drawString("Please link to the wifi: ", 20, 20, GFXFF);
   M5.Lcd.drawString("ToamtoM5", 20, 50, GFXFF);
   M5.Lcd.drawString("         ", 20, 70, GFXFF);
-  M5.Lcd.drawString("and then open 192.168.1.1", 20, 80, GFXFF);
+  M5.Lcd.drawString("and open 192.168.1.1", 20, 80, GFXFF);
 }
 
 void webConfigPortal()
@@ -2144,6 +2158,7 @@ void loop()
       M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
     */
       readTomatoRemote(cfg.url, cfg.token, &ns);
+      // readNightscout(cfg.url, cfg.token, &ns);
       // tomato  ot nightscout
       draw_page();
       msCount = millis();
