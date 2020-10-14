@@ -262,101 +262,101 @@ void readConfiguration( char const*  iniFilename, tConfig *cfg) {
     cfg->dev_mode = 0;
   }
 
-  if (ini.getValue("config", "yellow_low", buffer, bufferLen)) {
-    Serial.print("yellow_low = ");
-    cfg->yellow_low = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->yellow_low /= 18.0;
-    Serial.println(cfg->yellow_low);
-  }
-  else {
-    Serial.println("NO yellow_low defined");
-    cfg->yellow_low = 4.5;
-  }
+  // if (ini.getValue("config", "yellow_low", buffer, bufferLen)) {
+  //   Serial.print("yellow_low = ");
+  //   cfg->yellow_low = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->yellow_low /= 18.0;
+  //   Serial.println(cfg->yellow_low);
+  // }
+  // else {
+  //   Serial.println("NO yellow_low defined");
+  //   cfg->yellow_low = 4.5;
+  // }
 
-  if (ini.getValue("config", "yellow_high", buffer, bufferLen)) {
-    Serial.print("yellow_high = ");
-    cfg->yellow_high = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->yellow_high /= 18.0;
-    Serial.println(cfg->yellow_high);
-  }
-  else {
-    Serial.println("NO yellow_high defined");
-    cfg->yellow_high = 9.0;
-  }
+  // if (ini.getValue("config", "yellow_high", buffer, bufferLen)) {
+  //   Serial.print("yellow_high = ");
+  //   cfg->yellow_high = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->yellow_high /= 18.0;
+  //   Serial.println(cfg->yellow_high);
+  // }
+  // else {
+  //   Serial.println("NO yellow_high defined");
+  //   cfg->yellow_high = 9.0;
+  // }
 
-  if (ini.getValue("config", "red_low", buffer, bufferLen)) {
-    Serial.print("red_low = ");
-    cfg->red_low = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->red_low /= 18.0;
-    Serial.println(cfg->red_low);
-  }
-  else {
-    Serial.println("NO red_low defined");
-    cfg->red_low = 3.9;
-  }
+  // if (ini.getValue("config", "red_low", buffer, bufferLen)) {
+  //   Serial.print("red_low = ");
+  //   cfg->red_low = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->red_low /= 18.0;
+  //   Serial.println(cfg->red_low);
+  // }
+  // else {
+  //   Serial.println("NO red_low defined");
+  //   cfg->red_low = 3.9;
+  // }
 
-  if (ini.getValue("config", "red_high", buffer, bufferLen)) {
-    Serial.print("red_high = ");
-    cfg->red_high = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->red_high /= 18.0;
-    Serial.println(cfg->red_high);
-  }
-  else {
-    Serial.println("NO red_high defined");
-    cfg->red_high = 9.0;
-  }
+  // if (ini.getValue("config", "red_high", buffer, bufferLen)) {
+  //   Serial.print("red_high = ");
+  //   cfg->red_high = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->red_high /= 18.0;
+  //   Serial.println(cfg->red_high);
+  // }
+  // else {
+  //   Serial.println("NO red_high defined");
+  //   cfg->red_high = 9.0;
+  // }
 
-  if (ini.getValue("config", "snd_warning", buffer, bufferLen)) {
-    Serial.print("snd_warning = ");
-    cfg->snd_warning = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->snd_warning /= 18.0;
-    Serial.println(cfg->snd_warning);
-  }
-  else {
-    Serial.println("NO snd_warning defined");
-    cfg->snd_warning = 3.7;
-  }
+  // if (ini.getValue("config", "snd_warning", buffer, bufferLen)) {
+  //   Serial.print("snd_warning = ");
+  //   cfg->snd_warning = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->snd_warning /= 18.0;
+  //   Serial.println(cfg->snd_warning);
+  // }
+  // else {
+  //   Serial.println("NO snd_warning defined");
+  //   cfg->snd_warning = 3.7;
+  // }
 
-  if (ini.getValue("config", "snd_alarm", buffer, bufferLen)) {
-    Serial.print("snd_alarm = ");
-    cfg->snd_alarm = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->snd_alarm /= 18.0;
-    Serial.println(cfg->snd_alarm);
-  }
-  else {
-    Serial.println("NO snd_alarm defined");
-    cfg->snd_alarm = 3.0;
-  }
+  // if (ini.getValue("config", "snd_alarm", buffer, bufferLen)) {
+  //   Serial.print("snd_alarm = ");
+  //   cfg->snd_alarm = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->snd_alarm /= 18.0;
+  //   Serial.println(cfg->snd_alarm);
+  // }
+  // else {
+  //   Serial.println("NO snd_alarm defined");
+  //   cfg->snd_alarm = 3.0;
+  // }
 
-  if (ini.getValue("config", "snd_warning_high", buffer, bufferLen)) {
-    Serial.print("snd_warning_high = ");
-    cfg->snd_warning_high = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->snd_warning_high /= 18.0;
-    Serial.println(cfg->snd_warning_high);
-  }
-  else {
-    Serial.println("NO snd_warning_high defined");
-    cfg->snd_warning_high = 14.0;
-  }
+  // if (ini.getValue("config", "snd_warning_high", buffer, bufferLen)) {
+  //   Serial.print("snd_warning_high = ");
+  //   cfg->snd_warning_high = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->snd_warning_high /= 18.0;
+  //   Serial.println(cfg->snd_warning_high);
+  // }
+  // else {
+  //   Serial.println("NO snd_warning_high defined");
+  //   cfg->snd_warning_high = 14.0;
+  // }
 
-  if (ini.getValue("config", "snd_alarm_high", buffer, bufferLen)) {
-    Serial.print("snd_alarm_high = ");
-    cfg->snd_alarm_high = atof(buffer);
-    if( cfg->show_mgdl )
-      cfg->snd_alarm_high /= 18.0;
-    Serial.println(cfg->snd_alarm_high);
-  }
-  else {
-    Serial.println("NO snd_alarm_high defined");
-    cfg->snd_alarm_high = 20.0;
-  }
+  // if (ini.getValue("config", "snd_alarm_high", buffer, bufferLen)) {
+  //   Serial.print("snd_alarm_high = ");
+  //   cfg->snd_alarm_high = atof(buffer);
+  //   if( cfg->show_mgdl )
+  //     cfg->snd_alarm_high /= 18.0;
+  //   Serial.println(cfg->snd_alarm_high);
+  // }
+  // else {
+  //   Serial.println("NO snd_alarm_high defined");
+  //   cfg->snd_alarm_high = 20.0;
+  // }
 
   if (ini.getValue("config", "snd_no_readings", buffer, bufferLen)) {
     Serial.print("snd_no_readings = ");
