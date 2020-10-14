@@ -2409,7 +2409,7 @@ void showConfigLog()
   Serial.println(config.tomatoShareID);
   Serial.print("config.alarmHigh:");
   Serial.println(config.alarmHigh);
-  Serial.print("config.warnningHigh:");
+  Serial.print("config.warningHigh:");
   Serial.println(config.warningHigh);
   Serial.print("config.alarmLow:");
   Serial.println(config.alarmLow);
