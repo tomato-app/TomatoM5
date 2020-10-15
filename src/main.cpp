@@ -2,7 +2,6 @@
 #include <M5Stack.h>
 #include <Preferences.h>
 #include <WiFi.h>
-#include <WiFiMulti.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
@@ -21,11 +20,9 @@
 #include <Wire.h> //The DHT12 uses I2C comunication.
 #include "WiFiConfig.h"
 
-
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
 String M5NSversion("20200825");
-WiFiMulti WiFiMultiple;
 
 // extern const unsigned char alarmSndData[];
 
@@ -45,7 +42,6 @@ extern const unsigned char bat3_icon16x16[];
 extern const unsigned char bat4_icon16x16[];
 extern const unsigned char plug_icon16x16[];
 
-
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -61,17 +57,15 @@ int dispPage = 0;
 #define MAX_PAGE 3
 int maxPage = MAX_PAGE;
 
-
-
 // -- Callback method declarations
 
 unsigned long msCount;
 unsigned long msCountLog;
 unsigned long msStart;
 uint8_t lcdBrightness = 10;
-const char iniFilename[] = "/M5NS.INI";
+const char *iniFilename = "/M5NS.INI";
 
-DynamicJsonDocument JSONdoc(1024);
+DynamicJsonDocument JSONdoc(8192);
 time_t lastAlarmTime = 0;
 time_t lastSnoozeTime = 0;
 static uint8_t music_data[25000];
@@ -81,9 +75,17 @@ int icon_ypos[3] = {0, 0, 0};
 
 struct Config
 {
-  char name[20] = {0};
-  bool enabled = false;
-  int hour = 0;
+  char tomatoShareID[128] = {0};
+  bool nSenabled;
+  char nSserver[128] = {0};
+  char token[128] = {0};
+  int port = 0;
+  int dataSource = 1;
+  int timezone = 21;
+  float warningLow = 4;
+  float warningHigh = 10;
+  float alarmLow = 3.9;
+  float alarmHigh = 13.9;
 } config;
 
 ConfigManager configManager;
@@ -102,6 +104,44 @@ struct err_log_item
 } err_log[10];
 int err_log_ptr = 0;
 int err_log_count = 0;
+
+void printLocalTime()
+{
+  if (!getLocalTime(&localTimeInfo))
+  {
+    Serial.println("Failed to obtain time");
+    M5.Lcd.println("Failed to obtain time");
+    return;
+  }
+  Serial.println(&localTimeInfo, "%A, %B %d %Y %H:%M:%S");
+  M5.Lcd.println(&localTimeInfo, "%A, %B %d %Y %H:%M:%S");
+}
+
+void getDevicetime()
+{
+  cfg.timeZone = config.timezone * 60 * 60;
+  configTime(cfg.timeZone, cfg.dst, ntpServer, "time.nist.gov", "time.google.com");
+  delay(1000);
+  Serial.print("Waiting for time.");
+  int i = 0;
+  while (!getLocalTime(&localTimeInfo))
+  {
+    Serial.print(".");
+    delay(1000);
+    i++;
+    if (i > MAX_TIME_RETRY)
+    {
+      Serial.print("Gave up waiting for time to have a valid value.");
+      break;
+    }
+  }
+  Serial.println();
+  printLocalTime();
+
+  Serial.println("Connection done");
+  M5.Lcd.println("Connection done");
+  return;
+}
 
 void play_music_data(uint32_t data_length, uint8_t volume)
 {
@@ -253,7 +293,11 @@ void handleAlarmsInfoLine(struct NSinfo *ns)
   }
   M5.Lcd.setTextSize(1);
   M5.Lcd.setFreeFont(FSSB12);
-  // Serial.print("sensSgv="); Serial.print(sensSgv); Serial.print(", cfg.snd_alarm="); Serial.println(cfg.snd_alarm);
+
+  /**
+   * TODO:
+   * - when use tomato, gert alarm via range 
+  */
   if ((ns->sensSgv <= cfg.snd_alarm) && (ns->sensSgv >= 0.1))
   {
     // red alarm state
@@ -673,6 +717,166 @@ void drawMiniGraph(struct NSinfo *ns)
   Serial.println();
 }
 
+void copyConfig(tConfig *cfg)
+{
+  Serial.print("yellow_low = ");
+  cfg->yellow_low = config.warningLow;
+  if (cfg->show_mgdl)
+    cfg->yellow_low /= 18.0;
+  Serial.println(cfg->yellow_low);
+
+  Serial.print("yellow_high = ");
+  cfg->yellow_high = config.alarmHigh;
+  if (cfg->show_mgdl)
+    cfg->yellow_high /= 18.0;
+  Serial.println(cfg->yellow_high);
+
+  Serial.print("red_low = ");
+  cfg->red_low = config.alarmLow;
+  if (cfg->show_mgdl)
+    cfg->red_low /= 18.0;
+  Serial.println(cfg->red_low);
+
+  Serial.print("red_high = ");
+  cfg->red_high = config.alarmHigh;
+  if (cfg->show_mgdl)
+    cfg->red_high /= 18.0;
+  Serial.println(cfg->red_high);
+
+  Serial.print("snd_warning = ");
+  cfg->snd_warning = config.warningLow;
+  if (cfg->show_mgdl)
+    cfg->snd_warning /= 18.0;
+  Serial.println(cfg->snd_warning);
+
+  Serial.print("snd_alarm = ");
+  cfg->snd_alarm = config.alarmLow;
+  if (cfg->show_mgdl)
+    cfg->snd_alarm /= 18.0;
+  Serial.println(cfg->snd_alarm);
+
+  Serial.print("snd_warning_high = ");
+  cfg->snd_warning_high = config.warningHigh;
+  if (cfg->show_mgdl)
+    cfg->snd_warning_high /= 18.0;
+  Serial.println(cfg->snd_warning_high);
+
+  Serial.print("snd_alarm_high = ");
+  cfg->snd_alarm_high = config.alarmHigh;
+  if (cfg->show_mgdl)
+    cfg->snd_alarm_high /= 18.0;
+  Serial.println(cfg->snd_alarm_high);
+}
+
+void readNssettings(char *url, char *token)
+{
+  HTTPClient http;
+  int err = 0;
+  char NSurlSettings[128];
+
+  if ((WiFi.status() == WL_CONNECTED))
+  {
+    // configure target server and url
+    if (strncmp(url, "http", 4))
+    {
+      strcpy(NSurlSettings, "https://");
+    }
+    else
+    {
+      strcpy(NSurlSettings, "");
+    }
+    strcat(NSurlSettings, url);
+    strcat(NSurlSettings, "/api/v1/profile/current");
+    Serial.print("NSurlSettings:");
+    Serial.println(NSurlSettings);
+
+    if ((token != NULL) && (strlen(token) > 0))
+    {
+      if (strchr(NSurlSettings, '?'))
+      {
+        strcat(NSurlSettings, "&token=");
+      }
+      else
+      {
+        strcat(NSurlSettings, "?token=");
+      }
+      strcat(NSurlSettings, token);
+      Serial.print("NSurlSettings:");
+      Serial.println(NSurlSettings);
+    }
+  }
+
+  http.begin(NSurlSettings); //HTTP
+
+  Serial.print("[HTTP] GET...\n");
+  // start connection and send HTTP header
+  int httpCode = http.GET();
+
+  // httpCode will be negative on error
+  if (httpCode > 0)
+  {
+    // HTTP header has been send and Server response header has been handled
+    Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+    // file found at server
+    if (httpCode == HTTP_CODE_OK)
+    {
+      String json = http.getString();
+      // remove any non text characters (just for sure)
+      for (int i = 0; i < json.length(); i++)
+      {
+        // Serial.print(json.charAt(i), DEC); Serial.print(" = "); Serial.println(json.charAt(i));
+        if (json.charAt(i) < 32 /* || json.charAt(i)=='\\' */)
+        {
+          json.setCharAt(i, 32);
+        }
+      }
+      // json.replace("\\n"," ");
+      // invalid Unicode character defined by Ascensia Diabetes Care Bluetooth Glucose Meter
+      // ArduinoJSON does not accept any unicode surrogate pairs like \u0032 or \u0000
+      json.replace("\\u0000", " ");
+      json.replace("\\u0032", " ");
+      Serial.print("Free Heap = ");
+      Serial.println(ESP.getFreeHeap());
+      DeserializationError JSONerr = deserializeJson(JSONdoc, json);
+      Serial.println("JSON deserialized OK");
+      JsonArray arr = JSONdoc.as<JsonArray>();
+      Serial.print("JSON array size = ");
+      Serial.println(arr.size());
+      if (JSONerr)
+      { //Check for errors in parsing
+        Serial.print("解析出错了鹅鹅鹅饿");
+        if (JSONerr)
+        {
+          err = 1001; // "JSON parsing failed"
+        }
+        else
+        {
+          err = 1002; // "No data from Nightscout"
+        }
+        addErrorLog(err);
+      }
+      else
+      {
+        JsonObject profileObj;
+        profileObj = JSONdoc.as<JsonObject>();
+        String bgUnit = profileObj["units"];
+        Serial.print("units:");
+        Serial.println(bgUnit);
+
+        if (bgUnit == "mg/dl")
+        {
+          cfg.show_mgdl = 1;
+        }
+        else
+        {
+          cfg.show_mgdl = 0;
+        }
+      }
+    }
+  }
+}
+
 int readNightscout(char *url, char *token, struct NSinfo *ns)
 {
   HTTPClient http;
@@ -680,14 +884,32 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
   int err = 0;
   char tmpstr[32];
 
-  if ((WiFiMultiple.run() == WL_CONNECTED))
+  if ((WiFi.status() == WL_CONNECTED))
   {
     // configure target server and url
     if (strncmp(url, "http", 4))
+    {
       strcpy(NSurl, "https://");
+    }
     else
+    {
       strcpy(NSurl, "");
+    }
     strcat(NSurl, url);
+
+    if ((token != NULL) && (strlen(token) > 0))
+    {
+      if (strchr(NSurl, '?'))
+      {
+        strcat(NSurl, "&token=");
+      }
+      else
+      {
+        strcat(NSurl, "?token=");
+      }
+      strcat(NSurl, token);
+    }
+
     if (strstr(NSurl, "sugarmate") != NULL) // Sugarmate JSON URL for Dexcom follower
       ns->is_Sugarmate = 1;
     else
@@ -1016,6 +1238,283 @@ int readNightscout(char *url, char *token, struct NSinfo *ns)
 
   return err;
 }
+////////////////////////////////////////////////////////////////
+
+size_t trimwhitespace(char *out, size_t len, const char *str)
+{
+  if (len == 0)
+    return 0;
+
+  const char *end;
+  size_t out_size;
+
+  // Trim leading space
+  while (isspace((unsigned char)*str))
+    str++;
+
+  if (*str == 0) // All spaces?
+  {
+    *out = 0;
+    return 1;
+  }
+
+  // Trim trailing space
+  end = str + strlen(str) - 1;
+  while (end > str && isspace((unsigned char)*end))
+    end--;
+  end++;
+
+  // Set output size to minimum of trimmed string length and buffer size minus 1
+  out_size = (end - str) < len - 1 ? (end - str) : len - 1;
+
+  // Copy trimmed string and add null terminator
+  // char*ptr = malloc(32);
+  if (!out)
+  {
+    perror("malloc");
+    exit(EXIT_FAILURE);
+  };
+  memcpy(out, str, out_size);
+  out[out_size] = 0;
+
+  return out_size;
+}
+
+int readTomatoRemote(const char *shareID, struct NSinfo *ns)
+{
+  HTTPClient http;
+  char NSurl[256] = "http://api.tomato.cool/m5stack/glycemic/"; //Prod Env
+  // char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/"; // Dev Env
+  int err = 0;
+  char tmpstr[32];
+  char deviceid[16];
+  strcpy(deviceid, WiFi.macAddress().c_str());
+
+  // unsigned long endTime = esp_timer_get_time() * 1000000;
+  size_t shareIdLen = strlen(shareID) + 1;
+  char tomatoshareIDinURL[shareIdLen];
+
+  trimwhitespace(tomatoshareIDinURL, shareIdLen, shareID);
+
+  /**
+   * TODO: modify it to real value
+   *    
+  */
+  const char *endTime = "1592956800000";
+  Serial.print("endTime:");
+  Serial.println(endTime);
+  const char *startTime = "1592870400000";
+  Serial.print("startTime:");
+  Serial.println(startTime);
+
+  Serial.print("deviceid:");
+  Serial.println(F(deviceid));
+  strcat(NSurl, tomatoshareIDinURL);
+  strcat(NSurl, "?device_id=");
+  strcat(NSurl, deviceid);
+
+  /**
+   * Only for test
+  */
+  strcat(NSurl, "&start_time=");
+  strcat(NSurl, String(startTime).c_str());
+  strcat(NSurl, "&end_time=");
+  strcat(NSurl, String(endTime).c_str());
+
+  if ((WiFi.status() == WL_CONNECTED))
+  {
+    // configure target server and url
+
+    M5.Lcd.fillRect(icon_xpos[0], icon_ypos[0], 16, 16, BLACK);
+    drawIcon(icon_xpos[0], icon_ypos[0], (uint8_t *)wifi2_icon16x16, TFT_BLUE);
+
+    Serial.print("JSON query NSurl = \'");
+    Serial.print(NSurl);
+    Serial.print("\'\n");
+    http.begin(NSurl); //HTTP
+
+    Serial.print("[HTTP] GET...\n");
+    // start connection and send HTTP header
+    int httpCode = http.GET();
+
+    // httpCode will be negative on error
+    if (httpCode > 0)
+    {
+      // HTTP header has been send and Server response header has been handled
+      Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+
+      // file found at server
+      if (httpCode == HTTP_CODE_OK)
+      {
+        String json = http.getString();
+        Serial.print(json);
+        // remove any non text characters (just for sure)
+        for (int i = 0; i < json.length(); i++)
+        {
+          // Serial.print(json.charAt(i), DEC); Serial.print(" = "); Serial.println(json.charAt(i));
+          if (json.charAt(i) < 32 /* || json.charAt(i)=='\\' */)
+          {
+            json.setCharAt(i, 32);
+          }
+        }
+        // json.replace("\\n"," ");
+        // invalid Unicode character defined by Ascensia Diabetes Care Bluetooth Glucose Meter
+        // ArduinoJSON does not accept any unicode surrogate pairs like \u0032 or \u0000
+        json.replace("\\u0000", " ");
+        json.replace("\\u0032", " ");
+        // Serial.println(json);
+        // const size_t capacity = JSON_ARRAY_SIZE(10) + 10*JSON_OBJECT_SIZE(19) + 3840;
+        // Serial.print("JSON size needed= "); Serial.print(capacity);
+        Serial.print("Free Heap = ");
+        Serial.println(ESP.getFreeHeap());
+        DeserializationError JSONerr = deserializeJson(JSONdoc, json);
+        Serial.println("JSON deserialized OK");
+        JsonArray arr = JSONdoc["data"]["glycemic_list"].as<JsonArray>();
+        Serial.print("JSON array size = ");
+        Serial.println(arr.size());
+        if (JSONerr || (arr.size() == 0))
+        { //Check for errors in parsing
+          if (JSONerr)
+          {
+            err = 1001; // "JSON parsing failed"
+          }
+          else
+          {
+            err = 1002; // "No data from Nightscout"
+          }
+          addErrorLog(err);
+        }
+        else
+        {
+          JsonObject obj;
+
+          // Nightscout values
+
+          int sgvindex = 0;
+          do
+          {
+            obj = JSONdoc["data"].as<JsonObject>();
+            sgvindex++;
+          } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
+          sgvindex--;
+          if (sgvindex < 0 || sgvindex > (arr.size() - 1))
+            sgvindex = 0;
+          strlcpy(ns->sensDev, "Tomato", 64);
+          ns->is_xDrip = obj.containsKey("xDrip_raw");
+          ns->rawtime = JSONdoc["data"]["glycemic_list"][sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
+          ns->sensTime = ns->rawtime / 1000;                                                // no milliseconds, since 2000 would be - 946684800, but ok
+          int arrowNum = JSONdoc["data"]["arrow"];
+          String arrowStr = String(arrowNum);
+          strlcpy(ns->sensDir, arrowStr.c_str(), 32);
+          float change = JSONdoc["data"]["change"];
+          int bgUnit = JSONdoc["data"]["bgUnit"];
+          if (bgUnit == 1)
+          {
+            cfg.show_mgdl = 0;
+          }
+          else if (bgUnit == 2)
+          {
+            cfg.show_mgdl = 1;
+          };
+
+          int range = JSONdoc["data"]["range"];
+          cfg.range = range;
+          float changeMgdl = change * 18.0032;
+          Serial.print("change:");
+          Serial.println(change);
+          Serial.print("changeMgdl:");
+          Serial.println(changeMgdl);
+
+          ns->delta_mgdl = changeMgdl; // get value of sensor measurement
+          ns->delta_scaled = change;
+
+          Serial.print("delta_mgdl:");
+          Serial.println(ns->delta_mgdl);
+          Serial.print("delta_scaled:");
+          Serial.println(ns->delta_scaled);
+          if (cfg.show_mgdl)
+          {
+            sprintf(ns->delta_display, "%+d", ns->delta_mgdl);
+          }
+          else
+          {
+            sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
+          }
+
+          Serial.print("ns->delta_display");
+          Serial.print(ns->delta_display);
+          ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
+          for (int i = 0; i < 10; i++)
+          {
+            ns->last10sgv[9 - i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
+            // ns->last10sgv[i] /= 18.0;
+          }
+        }
+
+        Serial.print("ns->delta_display");
+        Serial.print(ns->delta_display);
+        ns->sensSgvMgDl = ns->sensSgv * 18.032;
+        // internally we work in mmol/L
+        // ns->sensSgv /= 18.0;
+
+        localtime_r(&ns->sensTime, &ns->sensTm);
+
+        ns->arrowAngle = 180;
+        if (strcmp(ns->sensDir, "1") == 0)
+          ns->arrowAngle = 90;
+        else if (strcmp(ns->sensDir, "2") == 0)
+          ns->arrowAngle = 45;
+        else if ((strcmp(ns->sensDir, "3") == 0) || (strcmp(ns->sensDir, "0") == 0))
+          ns->arrowAngle = 0;
+        else if (strcmp(ns->sensDir, "4") == 0)
+          ns->arrowAngle = -45;
+        else if (strcmp(ns->sensDir, "5") == 0)
+          ns->arrowAngle = -90;
+
+        Serial.print("sensDev = ");
+        Serial.println(ns->sensDev);
+        Serial.print("sensTime = ");
+        Serial.print(ns->sensTime);
+        sprintf(tmpstr, " (JSON %lld)", (long long)ns->rawtime);
+        Serial.print(tmpstr);
+        sprintf(tmpstr, " = %s", ctime(&ns->sensTime));
+        Serial.print(tmpstr);
+        Serial.print("sensSgv = ");
+        Serial.println(ns->sensSgv);
+        Serial.print("sensDir = ");
+        Serial.println(ns->sensDir);
+        // Serial.print(ns->sensTm.tm_year+1900); Serial.print(" / "); Serial.print(ns->sensTm.tm_mon+1); Serial.print(" / "); Serial.println(ns->sensTm.tm_mday);
+        Serial.print("Sensor time: ");
+        Serial.print(ns->sensTm.tm_hour);
+        Serial.print(":");
+        Serial.print(ns->sensTm.tm_min);
+        Serial.print(":");
+        Serial.print(ns->sensTm.tm_sec);
+        Serial.print(" DST ");
+        Serial.println(ns->sensTm.tm_isdst);
+      }
+      else
+      {
+        addErrorLog(httpCode);
+        err = httpCode;
+      }
+    }
+    else
+    {
+      addErrorLog(httpCode);
+      err = httpCode;
+    }
+    http.end();
+
+    if (err != 0)
+    {
+      Serial.printf("Returnining with error %d\n", err);
+      return err;
+    }
+  }
+
+  return err;
+}
 
 void draw_page()
 {
@@ -1033,8 +1532,15 @@ void draw_page()
     // if there was an error, then clear whole screen, otherwise only graphic updated part
     // M5.Lcd.fillScreen(BLACK);
     // M5.Lcd.fillRect(230, 110, 90, 100, TFT_BLACK);
-
-    // readNightscout(cfg.url, cfg.token, &ns);
+    if (config.dataSource != 2)
+    {
+      readTomatoRemote(config.tomatoShareID, &ns);
+    }
+    else
+    {
+      readNssettings(cfg.url, cfg.token);
+      readNightscout(cfg.url, cfg.token, &ns);
+    };
 
     M5.Lcd.setFreeFont(FSSB12);
     M5.Lcd.setTextSize(1);
@@ -1201,13 +1707,36 @@ void draw_page()
     M5.Lcd.drawString("min", 260, 70, GFXFF);
 
     uint16_t glColor = TFT_GREEN;
-    if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
+    /**
+     * Get the  color of bg
+     * - if use tomato, get the color via  the value of range
+     * */
+    if (config.dataSource != 2)
     {
-      glColor = TFT_YELLOW; // warning is YELLOW
+      if (cfg.range == 0)
+      {
+        glColor = TFT_GREEN;
+      }
+      else if ((cfg.range == 1) || (cfg.range == -1))
+      {
+        glColor = TFT_YELLOW;
+      }
+      else if ((cfg.range == 2) || (cfg.range == -2))
+      {
+        glColor = TFT_RED;
+      };
     }
-    if (ns.sensSgv < cfg.red_low || ns.sensSgv > cfg.red_high)
+    else
     {
-      glColor = TFT_RED; // alert is RED
+
+      if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
+      {
+        glColor = TFT_YELLOW; // warning is YELLOW
+      }
+      if (ns.sensSgv < cfg.red_low || ns.sensSgv > cfg.red_high)
+      {
+        glColor = TFT_RED; // alert is RED
+      }
     }
 
     sprintf(tmpstr, "Glyk: %4.1f %s", ns.sensSgv, ns.sensDir);
@@ -1219,6 +1748,7 @@ void draw_page()
     M5.Lcd.setTextColor(glColor, TFT_BLACK);
     char sensSgvStr[30];
     int smaller_font = 0;
+
     if (cfg.show_mgdl)
     {
       sprintf(sensSgvStr, "%3.0f", ns.sensSgvMgDl);
@@ -1272,13 +1802,32 @@ void draw_page()
     // readNightscout(cfg.url, cfg.token, &ns);
 
     uint16_t glColor = TFT_GREEN;
-    if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
+    if (config.dataSource != 2)
     {
-      glColor = TFT_YELLOW; // warning is YELLOW
+      if (cfg.range == 0)
+      {
+        glColor = TFT_GREEN;
+      }
+      else if ((cfg.range == 1) || (cfg.range == -1))
+      {
+        glColor = TFT_YELLOW;
+      }
+      else if ((cfg.range == 2) || (cfg.range == -2))
+      {
+        glColor = TFT_RED;
+      };
     }
-    if (ns.sensSgv < cfg.red_low || ns.sensSgv > cfg.red_high)
+    else
     {
-      glColor = TFT_RED; // alert is RED
+
+      if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
+      {
+        glColor = TFT_YELLOW; // warning is YELLOW
+      }
+      if (ns.sensSgv < cfg.red_low || ns.sensSgv > cfg.red_high)
+      {
+        glColor = TFT_RED; // alert is RED
+      }
     }
 
     sprintf(tmpstr, "Glyk: %4.1f %s", ns.sensSgv, ns.sensDir);
@@ -1370,13 +1919,32 @@ void draw_page()
   {
     // calculate SGV color
     uint16_t glColor = TFT_GREEN;
-    if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
+    if (config.dataSource != 2)
     {
-      glColor = TFT_YELLOW; // warning is YELLOW
+      if (cfg.range == 0)
+      {
+        glColor = TFT_GREEN;
+      }
+      else if ((cfg.range == 1) || (cfg.range == -1))
+      {
+        glColor = TFT_YELLOW;
+      }
+      else if ((cfg.range == 2) || (cfg.range == -2))
+      {
+        glColor = TFT_RED;
+      };
     }
-    if (ns.sensSgv < cfg.red_low || ns.sensSgv > cfg.red_high)
+    else
     {
-      glColor = TFT_RED; // alert is RED
+
+      if (ns.sensSgv < cfg.yellow_low || ns.sensSgv > cfg.yellow_high)
+      {
+        glColor = TFT_YELLOW; // warning is YELLOW
+      }
+      if (ns.sensSgv < cfg.red_low || ns.sensSgv > cfg.red_high)
+      {
+        glColor = TFT_RED; // alert is RED
+      }
     }
 
     // display SGV
@@ -1689,7 +2257,7 @@ void draw_page()
             strcpy(tmpStr, "JSON parsing failed");
             break;
           case 1002:
-            strcpy(tmpStr, "No data from Nightscout");
+            strcpy(tmpStr, "No data from Server");
             break;
           case 1003:
             strcpy(tmpStr, "JSON2 parsing failed");
@@ -1724,37 +2292,57 @@ void serverForConfig()
   configManager.setAPName("TomatoM5");
   configManager.setAPFilename("/index.html");
 
-  configManager.addParameterGroup("app", new Metadata("Application", "Example of application properties"))
-      .addParameter("name", config.name, 20, new Metadata("Name"))
-      .addParameter("enabled", &config.enabled, new Metadata("Enabled"))
-      .addParameter("hour", &config.hour, new Metadata("Hour"));
-
-  //  configManager.addParameterGroup("remote", new Metadata("remote", "Example of application properties"))
-  //     .addParameter("url", config.name, 20, new Metadata("Name"))
-  //     .addParameter("token", &config.enabled, new Metadata("Enabled"));
+  configManager.addParameterGroup("TomatoServer", new Metadata("Tomato Remote Configuration", "Configuration of Tomato remote shareID"))
+      .addParameter("tomatoShareID", config.tomatoShareID, 128, new Metadata("ShareID"));
+  configManager.addParameterGroup("Nightscout", new Metadata("Nightscout Configuration", "Configuration of Nightscout URL and tokens"))
+      .addParameter("server", config.nSserver, 128, new Metadata("Server"))
+      .addParameter("token", config.token, 64, new Metadata("Token"))
+      .addParameter("warnningLow", &config.warningLow, new Metadata("Low Target", "Use the same unit as your nightscout value"))
+      .addParameter("warnningHigh", &config.warningHigh, new Metadata("High Target", "Use the same unit as your nightscout value"))
+      .addParameter("alarmLow", &config.alarmLow, new Metadata("Very Low Target", "Use the same unit as your nightscout value, Will alarm when the bg lower than this!"))
+      .addParameter("alarmHigh", &config.alarmHigh, new Metadata("Very High Target", "Use the same unit as your nightscout value,Will alarm when the bg higher than this!"));
+  configManager.addParameterGroup("General", new Metadata("General Configuration", "Configuration of target or timezone"))
+      .addParameter("timezone", &config.timezone, new Metadata("Time Zone", "timezone Like -1,0,1,2"))
+      .addParameter("dataSource", &config.dataSource, new Metadata("DataSource ", "1 for Toamto Remote, 2 for NIghtScout."));
 
   configManager.begin(config);
 }
 
 void showGuidelines()
 {
-  while (WiFiMultiple.run() != WL_CONNECTED)
+  IPAddress ip = WiFi.localIP();
+  String apName = WiFi.SSID();
+  Serial.print("apName:");
+  Serial.println(apName);
+
+  char tmpStr[30];
+
+  if (WiFi.status() != WL_CONNECTED)
   {
-    M5.Lcd.drawString("Please link to the wifi: ", 20, 20, GFXFF);
+    M5.Lcd.drawString("Connect to the WiFI: ", 20, 20, GFXFF);
     M5.Lcd.drawString("TomatoM5", 20, 50, GFXFF);
-    M5.Lcd.drawString("         ", 20, 70, GFXFF);
-    M5.Lcd.drawString("and then open 192.168.1.1", 20, 80, GFXFF);
+    M5.Lcd.drawString("OPEN http://192.168.1.1 ", 20, 90, GFXFF);
+    M5.Lcd.drawString("with a browser to set WiFi!", 20, 120, GFXFF);
   }
+  else
+  {
+    M5.Lcd.drawString("Please connect to the WiFI: ", 20, 20, GFXFF);
+    M5.Lcd.drawString(apName, 20, 50, GFXFF);
+    M5.Lcd.drawString("OPEN the url below:",20, 90, GFXFF);
+    sprintf(tmpStr, "http://%u.%u.%u.%u/set", ip[0], ip[1], ip[2], ip[3]);
+    M5.Lcd.drawString(tmpStr, 20, 120, GFXFF);
+    M5.Lcd.drawString("with a browser to set!", 20, 150, GFXFF);
+  };
 }
 
 void webConfigPortal()
 {
-
   serverForConfig();
-  showGuidelines();
-  Serial.print(".");
-
-  delay(10000);
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    M5.Lcd.fillScreen(BLACK);
+    showGuidelines();
+  }
 }
 
 void startupLogo()
@@ -1813,6 +2401,24 @@ int8_t getBatteryLevel()
   return -1;
 }
 
+void showConfigLog()
+{
+  Serial.print("config.nSenabled:");
+  Serial.println(config.nSenabled);
+  Serial.print("config.token:");
+  Serial.println(config.token);
+  Serial.print("config.tomatoShareID:");
+  Serial.println(config.tomatoShareID);
+  Serial.print("config.alarmHigh:");
+  Serial.println(config.alarmHigh);
+  Serial.print("config.warningHigh:");
+  Serial.println(config.warningHigh);
+  Serial.print("config.alarmLow:");
+  Serial.println(config.alarmLow);
+  Serial.print("config.warnningLow:");
+  Serial.println(config.warningLow);
+}
+
 void setup()
 {
   M5.begin();
@@ -1824,6 +2430,7 @@ void setup()
     while (1)
       Serial.println("SPIFFS.begin() failed");
   M5.Lcd.println("SPIFFS.begin() failed");
+
   M5.Speaker.mute();
 
   Serial.println("Ready.");
@@ -1856,23 +2463,41 @@ void setup()
   M5.Lcd.setBrightness(lcdBrightness);
 
   startupLogo();
-  delay(1000);
-  M5.Lcd.fillScreen(MAROON);
-  M5.Lcd.setBrightness(lcdBrightness);
-
-  webConfigPortal();
-
+  delay(2000);
   yield();
-
-  M5.Lcd.fillScreen(MAROON);
   M5.Lcd.setBrightness(lcdBrightness);
+  Serial.print("Free Heap = ");
+  Serial.println(ESP.getFreeHeap());
 
-  dispPage = cfg.default_page;
-  setPageIconPos(dispPage);
-  // stat startup time
-  msStart = millis();
-  // update glycemia now
-  msCount = msStart - 16000;
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    M5.Lcd.setBrightness(lcdBrightness);
+    webConfigPortal();
+  }
+
+  if (config.timezone > 12 || config.timezone < -12)
+  {
+    M5.Lcd.fillScreen(BLACK);
+    showGuidelines();
+  }
+
+  showConfigLog();
+  copyConfig(&cfg);
+
+  // yield();
+  if (WiFi.status() == WL_CONNECTED && (config.timezone <= 12 && config.timezone >= -12))
+  {
+    getDevicetime();
+    M5.Lcd.fillScreen(BLACK);
+    M5.Lcd.setBrightness(lcdBrightness);
+
+    dispPage = cfg.default_page;
+    setPageIconPos(dispPage);
+    // stat startup time
+    msStart = millis();
+    // update glycemia now
+    msCount = msStart - 16000;
+  }
 }
 
 void loop()
@@ -1882,38 +2507,34 @@ void loop()
   buttons_test();
 
   // update glycemia every 15s
-  if (millis() - msCount > 15000)
+  if (WiFi.status() == WL_CONNECTED && (config.timezone <= 12 && config.timezone >= -12))
   {
-    /* if(dispPage==2)
+    if (millis() - msCount > 15000)
+    {
+      /* if(dispPage==2)
       M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
     */
-    // readNightscout(cfg.url, cfg.token, &ns);
-    draw_page();
-    msCount = millis();
-    Serial.print("msCount = ");
-    Serial.println(msCount);
-  }
-  else
-  {
-    if ((cfg.restart_at_logged_errors > 0) && (err_log_count >= cfg.restart_at_logged_errors))
-    {
-      Serial.println("Restarting on number of logged errors...");
-      delay(500);
-      preferences.begin("M5StackNS", false);
-      preferences.putBool("SoftReset", true);
-      preferences.putUInt("LastSnoozeTime", lastSnoozeTime);
-      preferences.end();
-      ESP.restart();
-    }
-    char lastResetTime[10];
-    strcpy(lastResetTime, "Unknown");
-    if (getLocalTime(&localTimeInfo))
-    {
-      sprintf(localTimeStr, "%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min);
-      // no soft restart less than a minute from last restart to prevent several restarts in the same minute
-      if ((millis() - msStart > 60000) && (strcmp(cfg.restart_at_time, localTimeStr) == 0))
+      if (config.dataSource != 2)
       {
-        Serial.println("Restarting on preset time...");
+        readTomatoRemote(config.tomatoShareID, &ns);
+      }
+      else
+      {
+        // readNssettings(cfg.url, cfg.token);
+        readNightscout(cfg.url, cfg.token, &ns);
+      };
+      // readNightscout(cfg.url, cfg.token, &ns);
+      // tomato  ot nightscout
+      draw_page();
+      msCount = millis();
+      Serial.print("msCount = ");
+      Serial.println(msCount);
+    }
+    else
+    {
+      if ((cfg.restart_at_logged_errors > 0) && (err_log_count >= cfg.restart_at_logged_errors))
+      {
+        Serial.println("Restarting on number of logged errors...");
         delay(500);
         preferences.begin("M5StackNS", false);
         preferences.putBool("SoftReset", true);
@@ -1921,115 +2542,137 @@ void loop()
         preferences.end();
         ESP.restart();
       }
-    }
-    if ((dispPage == 0) && cfg.show_current_time)
-    {
-      // update current time on display
-      M5.Lcd.setFreeFont(FSSB12);
-      M5.Lcd.setTextSize(1);
-      M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+      char lastResetTime[10];
+      strcpy(lastResetTime, "Unknown");
       if (getLocalTime(&localTimeInfo))
       {
-        switch (cfg.date_format)
+        sprintf(localTimeStr, "%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min);
+        // no soft restart less than a minute from last restart to prevent several restarts in the same minute
+        if ((millis() - msStart > 60000) && (strcmp(cfg.restart_at_time, localTimeStr) == 0))
         {
-        case 1:
-          sprintf(localTimeStr, "%02d:%02d  %d/%d  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mon + 1, localTimeInfo.tm_mday);
-          break;
-        default:
-          sprintf(localTimeStr, "%02d:%02d  %d.%d.  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mday, localTimeInfo.tm_mon + 1);
+          Serial.println("Restarting on preset time...");
+          delay(500);
+          preferences.begin("M5StackNS", false);
+          preferences.putBool("SoftReset", true);
+          preferences.putUInt("LastSnoozeTime", lastSnoozeTime);
+          preferences.end();
+          ESP.restart();
         }
       }
-      else
+      if ((dispPage == 0) && cfg.show_current_time)
       {
-        strcpy(localTimeStr, "??:??");
-        lastMin = 61;
-      }
-      if (lastMin != localTimeInfo.tm_min)
-      {
-        lastSec = localTimeInfo.tm_sec;
-        lastMin = localTimeInfo.tm_min;
-        M5.Lcd.drawString(localTimeStr, 0, 0, GFXFF);
-      }
-    }
-    if (dispPage == 2)
-    {
-      if (getLocalTime(&localTimeInfo))
-      {
-        // sprintf(localTimeStr, "%02d:%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_sec);
-      }
-      else
-      {
-        lastMin = 61;
-        lastSec = 61;
-      }
-      if (lastMin != localTimeInfo.tm_min || lastSec != localTimeInfo.tm_sec)
-      {
-        lastSec = localTimeInfo.tm_sec;
-        lastMin = localTimeInfo.tm_min;
-
-        float sx = 0, sy = 1, mx = 1, my = 0, hx = -1, hy = 0; // Saved H, M, S x & y multipliers
-        float sdeg = 0, mdeg = 0, hdeg = 0;
-
-        uint8_t hh = localTimeInfo.tm_hour, mm = localTimeInfo.tm_min, ss = localTimeInfo.tm_sec; // Get current time
-
-        // Pre-compute hand degrees, x & y coords for a fast screen update
-        sdeg = ss * 6;                     // 0-59 -> 0-354
-        mdeg = mm * 6 + sdeg * 0.01666667; // 0-59 -> 0-360 - includes seconds
-        hdeg = hh * 30 + mdeg * 0.0833333; // 0-11 -> 0-360 - includes minutes and seconds
-        hx = cos((hdeg - 90) * 0.0174532925);
-        hy = sin((hdeg - 90) * 0.0174532925);
-        mx = cos((mdeg - 90) * 0.0174532925);
-        my = sin((mdeg - 90) * 0.0174532925);
-        sx = cos((sdeg - 90) * 0.0174532925);
-        sy = sin((sdeg - 90) * 0.0174532925);
-
-        if (ss == 0 || initial)
-        {
-          initial = 0;
-          // Erase hour and minute hand positions every minute
-          M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_BLACK);
-          M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_BLACK);
-          M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_BLACK);
-          M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_BLACK);
-          M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_BLACK);
-          ohx = hx * 52 + 160;
-          ohy = hy * 52 + 110;
-          M5.Lcd.drawLine(omx, omy, 160, 110, TFT_BLACK);
-          omx = mx * 74 + 160;
-          omy = my * 74 + 110;
-        }
-
-        // erase old seconds hand position
-        M5.Lcd.drawLine(osx, osy, 160, 110, TFT_BLACK);
-
-        // draw day
-        M5.Lcd.drawRoundRect(182, 97, 36, 26, 7, TFT_LIGHTGREY);
-        M5.Lcd.setTextDatum(MC_DATUM);
-        M5.Lcd.setFreeFont(FSSB9);
+        // update current time on display
+        M5.Lcd.setFreeFont(FSSB12);
+        M5.Lcd.setTextSize(1);
         M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-        M5.Lcd.drawString(String(localTimeInfo.tm_mday), 200, 108, GFXFF);
+        if (getLocalTime(&localTimeInfo))
+        {
+          switch (cfg.date_format)
+          {
+          case 1:
+            sprintf(localTimeStr, "%02d:%02d  %d/%d  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mon + 1, localTimeInfo.tm_mday);
+            break;
+          default:
+            sprintf(localTimeStr, "%02d:%02d  %d.%d.  ", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_mday, localTimeInfo.tm_mon + 1);
+          }
+        }
+        else
+        {
+          strcpy(localTimeStr, "??:??");
+          lastMin = 61;
+        }
+        if (lastMin != localTimeInfo.tm_min)
+        {
+          lastSec = localTimeInfo.tm_sec;
+          lastMin = localTimeInfo.tm_min;
+          M5.Lcd.drawString(localTimeStr, 0, 0, GFXFF);
+        }
+      }
+      if (dispPage == 2)
+      {
+        if (getLocalTime(&localTimeInfo))
+        {
+          // sprintf(localTimeStr, "%02d:%02d:%02d", localTimeInfo.tm_hour, localTimeInfo.tm_min, localTimeInfo.tm_sec);
+        }
+        else
+        {
+          lastMin = 61;
+          lastSec = 61;
+        }
+        if (lastMin != localTimeInfo.tm_min || lastSec != localTimeInfo.tm_sec)
+        {
+          lastSec = localTimeInfo.tm_sec;
+          lastMin = localTimeInfo.tm_min;
 
-        // draw name
-        M5.Lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
-        M5.Lcd.drawString(cfg.userName, 160, 145, GFXFF);
+          float sx = 0, sy = 1, mx = 1, my = 0, hx = -1, hy = 0; // Saved H, M, S x & y multipliers
+          float sdeg = 0, mdeg = 0, hdeg = 0;
 
-        // draw digital time
-        // M5.Lcd.drawString(localTimeStr, 160, 75, GFXFF);
+          uint8_t hh = localTimeInfo.tm_hour, mm = localTimeInfo.tm_min, ss = localTimeInfo.tm_sec; // Get current time
 
-        // Redraw new hand positions, hour and minute hands not erased here to avoid flicker
-        osx = sx * 78 + 160;
-        osy = sy * 78 + 110;
-        // M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
-        M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_WHITE);
-        M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_WHITE);
-        M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_WHITE);
-        M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_WHITE);
-        M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_WHITE);
-        M5.Lcd.drawLine(omx, omy, 160, 110, TFT_WHITE);
-        M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
+          // Pre-compute hand degrees, x & y coords for a fast screen update
+          sdeg = ss * 6;                     // 0-59 -> 0-354
+          mdeg = mm * 6 + sdeg * 0.01666667; // 0-59 -> 0-360 - includes seconds
+          hdeg = hh * 30 + mdeg * 0.0833333; // 0-11 -> 0-360 - includes minutes and seconds
+          hx = cos((hdeg - 90) * 0.0174532925);
+          hy = sin((hdeg - 90) * 0.0174532925);
+          mx = cos((mdeg - 90) * 0.0174532925);
+          my = sin((mdeg - 90) * 0.0174532925);
+          sx = cos((sdeg - 90) * 0.0174532925);
+          sy = sin((sdeg - 90) * 0.0174532925);
 
-        M5.Lcd.fillCircle(160, 110, 3, TFT_RED);
+          if (ss == 0 || initial)
+          {
+            initial = 0;
+            // Erase hour and minute hand positions every minute
+            M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_BLACK);
+            M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_BLACK);
+            M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_BLACK);
+            M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_BLACK);
+            M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_BLACK);
+            ohx = hx * 52 + 160;
+            ohy = hy * 52 + 110;
+            M5.Lcd.drawLine(omx, omy, 160, 110, TFT_BLACK);
+            omx = mx * 74 + 160;
+            omy = my * 74 + 110;
+          }
+
+          // erase old seconds hand position
+          M5.Lcd.drawLine(osx, osy, 160, 110, TFT_BLACK);
+
+          // draw day
+          M5.Lcd.drawRoundRect(182, 97, 36, 26, 7, TFT_LIGHTGREY);
+          M5.Lcd.setTextDatum(MC_DATUM);
+          M5.Lcd.setFreeFont(FSSB9);
+          M5.Lcd.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
+          M5.Lcd.drawString(String(localTimeInfo.tm_mday), 200, 108, GFXFF);
+
+          // draw name
+          M5.Lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
+          M5.Lcd.drawString(cfg.userName, 160, 145, GFXFF);
+
+          // draw digital time
+          // M5.Lcd.drawString(localTimeStr, 160, 75, GFXFF);
+
+          // Redraw new hand positions, hour and minute hands not erased here to avoid flicker
+          osx = sx * 78 + 160;
+          osy = sy * 78 + 110;
+          // M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
+          M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_WHITE);
+          M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_WHITE);
+          M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_WHITE);
+          M5.Lcd.drawLine(ohx, ohy - 1, 160, 109, TFT_WHITE);
+          M5.Lcd.drawLine(ohx, ohy + 1, 160, 111, TFT_WHITE);
+          M5.Lcd.drawLine(omx, omy, 160, 110, TFT_WHITE);
+          M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
+
+          M5.Lcd.fillCircle(160, 110, 3, TFT_RED);
+        }
       }
     }
   }
+  else
+  {
+    return;
+  }
+  M5.update();
 }
