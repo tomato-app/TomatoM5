@@ -1283,7 +1283,8 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
 int readTomatoRemote(const char *shareID, struct NSinfo *ns)
 {
   HTTPClient http;
-  char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/";
+  char NSurl[256] = "http://api.tomato.cool/m5stack/glycemic/"; //Prod Env
+  // char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/"; // Dev Env
   int err = 0;
   char tmpstr[32];
   char deviceid[16];
@@ -2318,18 +2319,19 @@ void showGuidelines()
 
   if (WiFi.status() != WL_CONNECTED)
   {
-    M5.Lcd.drawString("Please connect to the WiFI: ", 20, 20, GFXFF);
+    M5.Lcd.drawString("Connect to the WiFI: ", 20, 20, GFXFF);
     M5.Lcd.drawString("TomatoM5", 20, 50, GFXFF);
     M5.Lcd.drawString("OPEN http://192.168.1.1 ", 20, 90, GFXFF);
-    M5.Lcd.drawString("with a browser to set Toamto M5!", 20, 120, GFXFF);
+    M5.Lcd.drawString("with a browser to set WiFi!", 20, 120, GFXFF);
   }
   else
   {
     M5.Lcd.drawString("Please connect to the WiFI: ", 20, 20, GFXFF);
     M5.Lcd.drawString(apName, 20, 50, GFXFF);
-    sprintf(tmpStr, "OPEN http://%u.%u.%u.%u/settings", ip[0], ip[1], ip[2], ip[3]);
-    M5.Lcd.drawString(tmpStr, 20, 90, GFXFF);
-    M5.Lcd.drawString("with a browser to set Toamto M5!", 20, 120, GFXFF);
+    M5.Lcd.drawString("OPEN the url below:",20, 90, GFXFF);
+    sprintf(tmpStr, "http://%u.%u.%u.%u/set", ip[0], ip[1], ip[2], ip[3]);
+    M5.Lcd.drawString(tmpStr, 20, 120, GFXFF);
+    M5.Lcd.drawString("with a browser to set!", 20, 150, GFXFF);
   };
 }
 
