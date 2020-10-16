@@ -64,8 +64,7 @@ void readConfiguration( char const*  iniFilename, tConfig *cfg) {
     Serial.println(" does not exist");
     M5.Lcd.println("No INI file");
     // Cannot do anything else
-    while (1)
-      ;
+    while (1);
   }
   Serial.println("Ini file exists");
   M5.Lcd.println("Ini file exists");

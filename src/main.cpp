@@ -687,26 +687,43 @@ void drawMiniGraph(struct NSinfo *ns)
   {
     sgvColor = TFT_GREEN;
     glk = *(ns->last10sgv + 9 - i);
-    if (glk > 12)
+    if (glk > 13.9)
     {
-      glk = 12;
+      glk = 13.9;
     }
     else
     {
-      if (glk < 3)
+      if (glk < 3.9)
       {
-        glk = 3;
+        glk = 3.9;
       }
     }
-    if (glk < cfg.red_low || glk > cfg.red_high)
+
+    if (config.dataSource != 2)
     {
-      sgvColor = TFT_RED;
-    }
+      if ((cfg.range == -2) || (cfg.range == 2))
+        {
+          sgvColor = TFT_RED;
+        }
+      else
+      {
+        if ((cfg.range == 1) || (cfg.range == -1))
+        {
+          sgvColor = TFT_YELLOW;
+        }
+      }}
     else
     {
-      if (glk < cfg.yellow_low || glk > cfg.yellow_high)
+      if (glk < cfg.red_low || glk > cfg.red_high)
       {
-        sgvColor = TFT_YELLOW;
+        sgvColor = TFT_RED;
+      }
+      else
+      {
+        if (glk < cfg.yellow_low || glk > cfg.yellow_high)
+        {
+          sgvColor = TFT_YELLOW;
+        }
       }
     }
     Serial.print(*(ns->last10sgv + i));
@@ -1300,7 +1317,6 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
    * TODO: modify it to real value
    *    
   */
- 
 
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
@@ -1402,8 +1418,47 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
             sgvindex = (arr.size() - 1);
           strlcpy(ns->sensDev, "Tomato", 64);
           ns->is_xDrip = obj.containsKey("xDrip_raw");
+          Serial.print("yellow_low = ");
+          cfg.yellow_low = JSONdoc["data"]["glycemic_list"][(arr.size() - 1)]["min"];
+          if (cfg.show_mgdl)
+            cfg.yellow_low *= 18.0;
+          Serial.println(cfg.yellow_low);
+
+          Serial.print("yellow_high = ");
+          cfg.yellow_high = JSONdoc["data"]["glycemic_list"][(arr.size() - 1)]["max"];
+          if (cfg.show_mgdl)
+            cfg.yellow_high *= 18.0;
+          Serial.println(cfg.yellow_high);
+
+          Serial.print("red_low = ");
+          cfg.red_low = 3.9;
+          if (cfg.show_mgdl)
+            cfg.red_low *= 18.0;
+          Serial.println(cfg.red_low);
+
+          Serial.print("red_high = ");
+          cfg.red_high = 13.9;
+          if (cfg.show_mgdl)
+            cfg.red_high *= 18.0;
+          Serial.println(cfg.red_high);
+
+          Serial.print("snd_warning = ");
+          cfg.snd_warning = cfg.yellow_low;
+          Serial.println(cfg.snd_warning);
+
+          Serial.print("snd_alarm = ");
+          cfg.snd_alarm = cfg.red_low;
+          Serial.println(cfg.snd_alarm);
+
+          Serial.print("snd_warning_high = ");
+          cfg.snd_warning_high = cfg.yellow_high;
+          Serial.println(cfg.snd_warning_high);
+
+          Serial.print("snd_alarm_high = ");
+          cfg.snd_alarm_high = cfg.red_high;
+          Serial.println(cfg.snd_alarm_high);
           ns->rawtime = JSONdoc["data"]["glycemic_time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
-          ns->sensTime = ns->rawtime / 1000;                                                // no milliseconds, since 2000 would be - 946684800, but ok
+          ns->sensTime = ns->rawtime / 1000;                              // no milliseconds, since 2000 would be - 946684800, but ok
           int arrowNum = JSONdoc["data"]["arrow"];
           String arrowStr = String(arrowNum);
           strlcpy(ns->sensDir, arrowStr.c_str(), 32);
@@ -2329,7 +2384,7 @@ void showGuidelines()
   {
     M5.Lcd.drawString("Please connect to the WiFI: ", 20, 20, GFXFF);
     M5.Lcd.drawString(apName, 20, 50, GFXFF);
-    M5.Lcd.drawString("OPEN the url below:",20, 90, GFXFF);
+    M5.Lcd.drawString("OPEN the url below:", 20, 90, GFXFF);
     sprintf(tmpStr, "http://%u.%u.%u.%u/set", ip[0], ip[1], ip[2], ip[3]);
     M5.Lcd.drawString(tmpStr, 20, 120, GFXFF);
     M5.Lcd.drawString("with a browser to set!", 20, 150, GFXFF);
