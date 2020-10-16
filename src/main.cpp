@@ -1283,7 +1283,7 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
 int readTomatoRemote(const char *shareID, struct NSinfo *ns)
 {
   HTTPClient http;
-  char NSurl[256] = "http://api.tomato.cool/m5stack/glycemic/"; //Prod Env
+  char NSurl[256] = "https://app.tomato.cool/m5stack/glycemic/"; //Prod Env
   // char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/"; // Dev Env
   int err = 0;
   char tmpstr[32];
@@ -1300,12 +1300,7 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
    * TODO: modify it to real value
    *    
   */
-  const char *endTime = "1592956800000";
-  Serial.print("endTime:");
-  Serial.println(endTime);
-  const char *startTime = "1592870400000";
-  Serial.print("startTime:");
-  Serial.println(startTime);
+ 
 
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
@@ -1316,10 +1311,16 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
   /**
    * Only for test
   */
-  strcat(NSurl, "&start_time=");
-  strcat(NSurl, String(startTime).c_str());
-  strcat(NSurl, "&end_time=");
-  strcat(NSurl, String(endTime).c_str());
+  // const char *endTime = "1592956800000";
+  // Serial.print("endTime:");
+  // Serial.println(endTime);
+  // const char *startTime = "1592870400000";
+  // Serial.print("startTime:");
+  // Serial.println(startTime);
+  // strcat(NSurl, "&start_time=");
+  // strcat(NSurl, String(startTime).c_str());
+  // strcat(NSurl, "&end_time=");
+  // strcat(NSurl, String(endTime).c_str());
 
   if ((WiFi.status() == WL_CONNECTED))
   {
@@ -1398,10 +1399,10 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
           } while ((!obj.containsKey("glycemic")) && (sgvindex < (arr.size() - 1)));
           sgvindex--;
           if (sgvindex < 0 || sgvindex > (arr.size() - 1))
-            sgvindex = 0;
+            sgvindex = (arr.size() - 1);
           strlcpy(ns->sensDev, "Tomato", 64);
           ns->is_xDrip = obj.containsKey("xDrip_raw");
-          ns->rawtime = JSONdoc["data"]["glycemic_list"][sgvindex]["time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
+          ns->rawtime = JSONdoc["data"]["glycemic_time"].as<long long>(); // sensTime is time in milliseconds since 1970, something like 1555229938118
           ns->sensTime = ns->rawtime / 1000;                                                // no milliseconds, since 2000 would be - 946684800, but ok
           int arrowNum = JSONdoc["data"]["arrow"];
           String arrowStr = String(arrowNum);
@@ -1446,7 +1447,7 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
           ns->sensSgv = JSONdoc["data"]["glycemic"]; // get value of sensor measurement
           for (int i = 0; i < 10; i++)
           {
-            ns->last10sgv[9 - i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
+            ns->last10sgv[arr.size() - 1 - i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
             // ns->last10sgv[i] /= 18.0;
           }
         }
