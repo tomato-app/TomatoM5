@@ -698,16 +698,18 @@ void drawMiniGraph(struct NSinfo *ns)
         glk = 3.9;
       }
     }
-
+// fix the point color in the mimi graph
     if (config.dataSource != 2)
     {
-      if ((cfg.range == -2) || (cfg.range == 2))
+      Serial.print("range:");
+      Serial.println(ns->last10range[i]);
+      if ((ns->last10range[i] == -2) || (ns->last10range[i] == 2))
         {
           sgvColor = TFT_RED;
         }
       else
       {
-        if ((cfg.range == 1) || (cfg.range == -1))
+        if ((ns->last10range[i] == 1) || (ns->last10range[i] == -1))
         {
           sgvColor = TFT_YELLOW;
         }
@@ -1420,26 +1422,26 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
           ns->is_xDrip = obj.containsKey("xDrip_raw");
           Serial.print("yellow_low = ");
           cfg.yellow_low = JSONdoc["data"]["glycemic_list"][(arr.size() - 1)]["min"];
-          if (cfg.show_mgdl)
-            cfg.yellow_low *= 18.0;
+          // if (cfg.show_mgdl)
+          //   cfg.yellow_low *= 18.0;
           Serial.println(cfg.yellow_low);
 
           Serial.print("yellow_high = ");
           cfg.yellow_high = JSONdoc["data"]["glycemic_list"][(arr.size() - 1)]["max"];
-          if (cfg.show_mgdl)
-            cfg.yellow_high *= 18.0;
+          // if (cfg.show_mgdl)
+          //   cfg.yellow_high *= 18.0;
           Serial.println(cfg.yellow_high);
 
           Serial.print("red_low = ");
           cfg.red_low = 3.9;
-          if (cfg.show_mgdl)
-            cfg.red_low *= 18.0;
+          // if (cfg.show_mgdl)
+          //   cfg.red_low *= 18.0;
           Serial.println(cfg.red_low);
 
           Serial.print("red_high = ");
           cfg.red_high = 13.9;
-          if (cfg.show_mgdl)
-            cfg.red_high *= 18.0;
+          // if (cfg.show_mgdl)
+          //   cfg.red_high *= 18.0;
           Serial.println(cfg.red_high);
 
           Serial.print("snd_warning = ");
@@ -1503,6 +1505,7 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
           for (int i = 0; i < 10; i++)
           {
             ns->last10sgv[arr.size() - 1 - i] = JSONdoc["data"]["glycemic_list"][i]["glycemic"];
+            ns->last10range[arr.size() - 1 - i] = JSONdoc["data"]["glycemic_list"][i]["range"];
             // ns->last10sgv[i] /= 18.0;
           }
         }
@@ -2353,10 +2356,10 @@ void serverForConfig()
   configManager.addParameterGroup("Nightscout", new Metadata("Nightscout Configuration", "Configuration of Nightscout URL and tokens"))
       .addParameter("server", config.nSserver, 128, new Metadata("Server"))
       .addParameter("token", config.token, 64, new Metadata("Token"))
-      .addParameter("warnningLow", &config.warningLow, new Metadata("Low Target", "Use the same unit as your nightscout value"))
-      .addParameter("warnningHigh", &config.warningHigh, new Metadata("High Target", "Use the same unit as your nightscout value"))
-      .addParameter("alarmLow", &config.alarmLow, new Metadata("Very Low Target", "Use the same unit as your nightscout value, Will alarm when the bg lower than this!"))
-      .addParameter("alarmHigh", &config.alarmHigh, new Metadata("Very High Target", "Use the same unit as your nightscout value,Will alarm when the bg higher than this!"));
+      .addParameter("warnningLow", &config.warningLow, new Metadata("Low Target", "According to the unit of mmol/l"))
+      .addParameter("warnningHigh", &config.warningHigh, new Metadata("High Target", "According to the unit of mmol/l"))
+      .addParameter("alarmLow", &config.alarmLow, new Metadata("Very Low Target", "According to the unit of mmol/l, Will alarm when the bg lower than this!"))
+      .addParameter("alarmHigh", &config.alarmHigh, new Metadata("Very High Target", "According to the unit of mmol/l,Will alarm when the bg higher than this!"));
   configManager.addParameterGroup("General", new Metadata("General Configuration", "Configuration of target or timezone"))
       .addParameter("timezone", &config.timezone, new Metadata("Time Zone", "timezone Like -1,0,1,2"))
       .addParameter("dataSource", &config.dataSource, new Metadata("DataSource ", "1 for Toamto Remote, 2 for NIghtScout."));
@@ -2559,6 +2562,7 @@ void setup()
 void loop()
 {
   configManager.loop();
+  delay(10);
   // -- doLoop should be called as frequently as possible.
   buttons_test();
 
@@ -2567,9 +2571,8 @@ void loop()
   {
     if (millis() - msCount > 15000)
     {
-      /* if(dispPage==2)
-      M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
-    */
+      // if(dispPage==2)
+      // M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
       if (config.dataSource != 2)
       {
         readTomatoRemote(config.tomatoShareID, &ns);
@@ -2580,7 +2583,7 @@ void loop()
         readNightscout(cfg.url, cfg.token, &ns);
       };
       // readNightscout(cfg.url, cfg.token, &ns);
-      // tomato  ot nightscout
+      // tomato  or nightscout
       draw_page();
       msCount = millis();
       Serial.print("msCount = ");
@@ -2712,7 +2715,7 @@ void loop()
           // Redraw new hand positions, hour and minute hands not erased here to avoid flicker
           osx = sx * 78 + 160;
           osy = sy * 78 + 110;
-          // M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
+          M5.Lcd.drawLine(osx, osy, 160, 110, TFT_RED);
           M5.Lcd.drawLine(ohx, ohy, 160, 110, TFT_WHITE);
           M5.Lcd.drawLine(ohx + 1, ohy, 161, 110, TFT_WHITE);
           M5.Lcd.drawLine(ohx - 1, ohy, 159, 110, TFT_WHITE);

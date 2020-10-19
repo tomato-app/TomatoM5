@@ -58,6 +58,7 @@ struct NSinfo {
   float sensSgvMgDl = 0;
   float sensSgv = 0;
   float last10sgv[10];
+  int last10range[10];
   bool is_xDrip = 0;  
   bool is_Sugarmate = 0;  
   int arrowAngle = 180;
