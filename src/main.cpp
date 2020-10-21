@@ -687,15 +687,11 @@ void drawMiniGraph(struct NSinfo *ns)
   {
     sgvColor = TFT_GREEN;
     glk = *(ns->last10sgv + 9 - i);
-    if (glk > 13.9)
-    {
-      glk = 13.9;
-    }
-    else
-    {
-      if (glk < 3.9)
-      {
-        glk = 3.9;
+    if(glk>22) {
+      glk = 22;
+    } else {
+      if(glk<2) {
+        glk = 2;
       }
     }
 // fix the point color in the mimi graph
@@ -703,13 +699,13 @@ void drawMiniGraph(struct NSinfo *ns)
     {
       Serial.print("range:");
       Serial.println(ns->last10range[i]);
-      if ((ns->last10range[i] == -2) || (ns->last10range[i] == 2))
+      if ((ns->last10range[(9-i)] == -2) || (ns->last10range[(9-i)] == 2))
         {
           sgvColor = TFT_RED;
         }
       else
       {
-        if ((ns->last10range[i] == 1) || (ns->last10range[i] == -1))
+        if ((ns->last10range[(9-i)] == 1) || (ns->last10range[(9-i)] == -1))
         {
           sgvColor = TFT_YELLOW;
         }
@@ -731,7 +727,7 @@ void drawMiniGraph(struct NSinfo *ns)
     Serial.print(*(ns->last10sgv + i));
     Serial.print(" ");
     if (*(ns->last10sgv + 9 - i) != 0)
-      M5.Lcd.fillCircle(234 + i * 9, 203 - (glk - 3.0) * 10.0, 3, sgvColor);
+      M5.Lcd.fillCircle(234 + i * 9, 203 - (glk - 2.0) * 6.5, 3, sgvColor);
   }
   Serial.println();
 }
@@ -2381,7 +2377,8 @@ void showGuidelines()
     M5.Lcd.drawString("Connect to the WiFI: ", 20, 20, GFXFF);
     M5.Lcd.drawString("TomatoM5", 20, 50, GFXFF);
     M5.Lcd.drawString("OPEN http://192.168.1.1 ", 20, 90, GFXFF);
-    M5.Lcd.drawString("with a browser to set WiFi!", 20, 120, GFXFF);
+    M5.Lcd.drawString("with a browser to set ", 20, 120, GFXFF);
+    M5.Lcd.drawString("WiFi!", 20, 150, GFXFF);
   }
   else
   {
