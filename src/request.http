@@ -1,0 +1,7 @@
+POST https://app.tomato.cool/5013 HTTP/1.1
+content-type: application/json
+
+{
+    "fwversion": 1,
+    "miaomiao_v": 4
+}

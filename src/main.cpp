@@ -2,10 +2,10 @@
 #include <M5Stack.h>
 #include <Preferences.h>
 #include <WiFi.h>
-#include <WebServer.h>
+// #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
-#include <HTTPUpdate.h>
+// #include <HTTPUpdate.h>
 #include "time.h"
 #include "externs.h"
 #include <FS.h>
@@ -15,14 +15,14 @@
 #include "Free_Fonts.h"
 #include "IniFile.h"
 #include "M5NSconfig.h"
-#include "M5NSWebConfig.h"
+// #include "M5NSWebConfig.h"
 #include "DHT12.h"
 #include <Wire.h> //The DHT12 uses I2C comunication.
 #include "WiFiConfig.h"
 
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
-String M5NSversion("20200825");
+int M5version = 2;
 
 // extern const unsigned char alarmSndData[];
 
@@ -2346,6 +2346,7 @@ void serverForConfig()
 {
   configManager.setAPName("TomatoM5");
   configManager.setAPFilename("/index.html");
+  configManager.setVersionName(M5version);
 
   configManager.addParameterGroup("TomatoServer", new Metadata("Tomato Remote Configuration", "Configuration of Tomato remote shareID"))
       .addParameter("tomatoShareID", config.tomatoShareID, 128, new Metadata("ShareID"));
@@ -2562,7 +2563,7 @@ void loop()
   delay(10);
   // -- doLoop should be called as frequently as possible.
   buttons_test();
-
+  yield();
   // update glycemia every 15s
   if (WiFi.status() == WL_CONNECTED && (config.timezone <= 12 && config.timezone >= -12))
   {
