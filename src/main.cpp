@@ -2,7 +2,7 @@
 #include <M5Stack.h>
 #include <Preferences.h>
 #include <WiFi.h>
-// #include <WebServer.h>
+#include <WebServer.h>
 #include <ESPmDNS.h>
 #include <HTTPClient.h>
 // #include <HTTPUpdate.h>
@@ -23,6 +23,8 @@
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
 int M5version = 2;
+
+// WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
 // extern const unsigned char alarmSndData[];
 
@@ -63,9 +65,9 @@ unsigned long msCount;
 unsigned long msCountLog;
 unsigned long msStart;
 uint8_t lcdBrightness = 10;
-const char *iniFilename = "/M5NS.INI";
+const char iniFilename[] = {"/M5NS.INI"};
 
-DynamicJsonDocument JSONdoc(8192);
+DynamicJsonDocument JSONdoc(16384);
 time_t lastAlarmTime = 0;
 time_t lastSnoozeTime = 0;
 static uint8_t music_data[25000];
@@ -687,29 +689,34 @@ void drawMiniGraph(struct NSinfo *ns)
   {
     sgvColor = TFT_GREEN;
     glk = *(ns->last10sgv + 9 - i);
-    if(glk>22) {
+    if (glk > 22)
+    {
       glk = 22;
-    } else {
-      if(glk<2) {
+    }
+    else
+    {
+      if (glk < 2)
+      {
         glk = 2;
       }
     }
-// fix the point color in the mimi graph
+    // fix the point color in the mimi graph
     if (config.dataSource != 2)
     {
       Serial.print("range:");
       Serial.println(ns->last10range[i]);
-      if ((ns->last10range[(9-i)] == -2) || (ns->last10range[(9-i)] == 2))
-        {
-          sgvColor = TFT_RED;
-        }
+      if ((ns->last10range[(9 - i)] == -2) || (ns->last10range[(9 - i)] == 2))
+      {
+        sgvColor = TFT_RED;
+      }
       else
       {
-        if ((ns->last10range[(9-i)] == 1) || (ns->last10range[(9-i)] == -1))
+        if ((ns->last10range[(9 - i)] == 1) || (ns->last10range[(9 - i)] == -1))
         {
           sgvColor = TFT_YELLOW;
         }
-      }}
+      }
+    }
     else
     {
       if (glk < cfg.red_low || glk > cfg.red_high)
@@ -781,6 +788,7 @@ void copyConfig(tConfig *cfg)
   if (cfg->show_mgdl)
     cfg->snd_alarm_high /= 18.0;
   Serial.println(cfg->snd_alarm_high);
+  return;
 }
 
 void readNssettings(char *url, char *token)
@@ -819,6 +827,7 @@ void readNssettings(char *url, char *token)
       Serial.print("NSurlSettings:");
       Serial.println(NSurlSettings);
     }
+    return;
   }
 
   http.begin(NSurlSettings); //HTTP
@@ -855,12 +864,12 @@ void readNssettings(char *url, char *token)
       Serial.println(ESP.getFreeHeap());
       DeserializationError JSONerr = deserializeJson(JSONdoc, json);
       Serial.println("JSON deserialized OK");
-      JsonArray arr = JSONdoc.as<JsonArray>();
-      Serial.print("JSON array size = ");
-      Serial.println(arr.size());
+      // JsonArray arr = JSONdoc.as<JsonArray>();
+      // Serial.print("JSON array size = ");
+      // Serial.println(arr.size());
       if (JSONerr)
       { //Check for errors in parsing
-        Serial.print("解析出错了鹅鹅鹅饿");
+        Serial.println("解析出错了鹅鹅鹅饿");
         if (JSONerr)
         {
           err = 1001; // "JSON parsing failed"
@@ -1594,6 +1603,7 @@ void draw_page()
     else
     {
       readNssettings(cfg.url, cfg.token);
+      delay(20);
       readNightscout(cfg.url, cfg.token, &ns);
     };
 
@@ -2378,7 +2388,7 @@ void showGuidelines()
     M5.Lcd.drawString("Connect to the WiFI: ", 20, 20, GFXFF);
     M5.Lcd.drawString("TomatoM5", 20, 50, GFXFF);
     M5.Lcd.drawString("OPEN http://192.168.1.1 ", 20, 90, GFXFF);
-    M5.Lcd.drawString("with a browser to set ", 20, 120, GFXFF);
+    M5.Lcd.drawString("with a browser to set up ", 20, 120, GFXFF);
     M5.Lcd.drawString("WiFi!", 20, 150, GFXFF);
   }
   else
@@ -2388,7 +2398,7 @@ void showGuidelines()
     M5.Lcd.drawString("OPEN the url below:", 20, 90, GFXFF);
     sprintf(tmpStr, "http://%u.%u.%u.%u/set", ip[0], ip[1], ip[2], ip[3]);
     M5.Lcd.drawString(tmpStr, 20, 120, GFXFF);
-    M5.Lcd.drawString("with a browser to set!", 20, 150, GFXFF);
+    M5.Lcd.drawString("with a browser to set up!", 20, 150, GFXFF);
   };
 }
 
@@ -2498,7 +2508,7 @@ void setup()
   M5.Lcd.setTextColor(WHITE);
   M5.Lcd.setCursor(0, 0);
   M5.Lcd.setTextSize(2);
-  yield();
+  // yield();
 
   Serial.print("Free Heap: ");
   Serial.println(ESP.getFreeHeap());
@@ -2560,14 +2570,14 @@ void setup()
 void loop()
 {
   configManager.loop();
-  delay(10);
-  // -- doLoop should be called as frequently as possible.
   buttons_test();
-  yield();
+  delay(20);
+  // yield();
+  // -- doLoop should be called as frequently as possible.
   // update glycemia every 15s
   if (WiFi.status() == WL_CONNECTED && (config.timezone <= 12 && config.timezone >= -12))
   {
-    if (millis() - msCount > 15000)
+    if (millis() - msCount > 25000)
     {
       // if(dispPage==2)
       // M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
@@ -2577,7 +2587,7 @@ void loop()
       }
       else
       {
-        // readNssettings(cfg.url, cfg.token);
+        readNssettings(cfg.url, cfg.token);
         readNightscout(cfg.url, cfg.token, &ns);
       };
       // readNightscout(cfg.url, cfg.token, &ns);

@@ -2,6 +2,10 @@ POST https://app.tomato.cool/5013 HTTP/1.1
 content-type: application/json
 
 {
-    "fwversion": 1,
-    "miaomiao_v": 4
+    "fwversion": "1",
+    "miaomiao_v": "4"
 }
+
+
+################################
+GET  http://image.tomato.cool/upload/d0db9abf-7710-4725-a38f-0be222d7a456.bin
