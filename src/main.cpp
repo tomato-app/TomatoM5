@@ -15,14 +15,14 @@
 #include "Free_Fonts.h"
 #include "IniFile.h"
 #include "M5NSconfig.h"
-// #include "M5NSWebConfig.h"
+// #include "M5NSWebM5Config.h"
 #include "DHT12.h"
 #include <Wire.h> //The DHT12 uses I2C comunication.
 #include "WiFiConfig.h"
 
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
-int M5version = 2;
+const int M5version = 2;
 
 // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
@@ -88,7 +88,7 @@ struct Config
   float warningHigh = 10;
   float alarmLow = 3.9;
   float alarmHigh = 13.9;
-} config;
+} M5config;
 
 ConfigManager configManager;
 
@@ -121,7 +121,7 @@ void printLocalTime()
 
 void getDevicetime()
 {
-  cfg.timeZone = config.timezone * 60 * 60;
+  cfg.timeZone = M5config.timezone * 60 * 60;
   configTime(cfg.timeZone, cfg.dst, ntpServer, "time.nist.gov", "time.google.com");
   delay(1000);
   Serial.print("Waiting for time.");
@@ -701,7 +701,7 @@ void drawMiniGraph(struct NSinfo *ns)
       }
     }
     // fix the point color in the mimi graph
-    if (config.dataSource != 2)
+    if (M5config.dataSource != 2)
     {
       Serial.print("range:");
       Serial.println(ns->last10range[i]);
@@ -739,54 +739,70 @@ void drawMiniGraph(struct NSinfo *ns)
   Serial.println();
 }
 
-void copyConfig(tConfig *cfg)
+void copyConfig(tConfig *cfg , Config *config)
 {
   Serial.print("yellow_low = ");
-  cfg->yellow_low = config.warningLow;
+  cfg->yellow_low = M5config.warningLow;
   if (cfg->show_mgdl)
+  {
     cfg->yellow_low /= 18.0;
+  }
   Serial.println(cfg->yellow_low);
 
   Serial.print("yellow_high = ");
-  cfg->yellow_high = config.alarmHigh;
+  cfg->yellow_high = M5config.alarmHigh;
   if (cfg->show_mgdl)
+  {
     cfg->yellow_high /= 18.0;
+  }
   Serial.println(cfg->yellow_high);
 
   Serial.print("red_low = ");
-  cfg->red_low = config.alarmLow;
+  cfg->red_low = M5config.alarmLow;
   if (cfg->show_mgdl)
+  {
     cfg->red_low /= 18.0;
+  }
   Serial.println(cfg->red_low);
 
   Serial.print("red_high = ");
-  cfg->red_high = config.alarmHigh;
+  cfg->red_high = M5config.alarmHigh;
   if (cfg->show_mgdl)
+  {
     cfg->red_high /= 18.0;
+  }
   Serial.println(cfg->red_high);
 
   Serial.print("snd_warning = ");
-  cfg->snd_warning = config.warningLow;
+  cfg->snd_warning = M5config.warningLow;
   if (cfg->show_mgdl)
+  {
     cfg->snd_warning /= 18.0;
+  }
   Serial.println(cfg->snd_warning);
 
   Serial.print("snd_alarm = ");
-  cfg->snd_alarm = config.alarmLow;
+  cfg->snd_alarm = M5config.alarmLow;
   if (cfg->show_mgdl)
+  {
     cfg->snd_alarm /= 18.0;
+  }
   Serial.println(cfg->snd_alarm);
 
   Serial.print("snd_warning_high = ");
-  cfg->snd_warning_high = config.warningHigh;
+  cfg->snd_warning_high = M5config.warningHigh;
   if (cfg->show_mgdl)
+  {
     cfg->snd_warning_high /= 18.0;
+  }
   Serial.println(cfg->snd_warning_high);
 
   Serial.print("snd_alarm_high = ");
-  cfg->snd_alarm_high = config.alarmHigh;
+  cfg->snd_alarm_high = M5config.alarmHigh;
   if (cfg->show_mgdl)
+  {
     cfg->snd_alarm_high /= 18.0;
+  }
   Serial.println(cfg->snd_alarm_high);
   return;
 }
@@ -827,7 +843,6 @@ void readNssettings(char *url, char *token)
       Serial.print("NSurlSettings:");
       Serial.println(NSurlSettings);
     }
-    return;
   }
 
   http.begin(NSurlSettings); //HTTP
@@ -1320,11 +1335,6 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
 
   trimwhitespace(tomatoshareIDinURL, shareIdLen, shareID);
 
-  /**
-   * TODO: modify it to real value
-   *    
-  */
-
   Serial.print("deviceid:");
   Serial.println(F(deviceid));
   strcat(NSurl, tomatoshareIDinURL);
@@ -1501,7 +1511,7 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
           }
           else
           {
-            sprintf(ns->delta_display, "%+.1f", ns->delta_scaled);
+            sprintf(ns->delta_display, "%+.2f", ns->delta_scaled);
           }
 
           Serial.print("ns->delta_display");
@@ -1524,15 +1534,15 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
         localtime_r(&ns->sensTime, &ns->sensTm);
 
         ns->arrowAngle = 180;
-        if (strcmp(ns->sensDir, "1") == 0)
+        if (strcmp(ns->sensDir, "5") == 0)
           ns->arrowAngle = 90;
-        else if (strcmp(ns->sensDir, "2") == 0)
+        else if (strcmp(ns->sensDir, "4") == 0)
           ns->arrowAngle = 45;
         else if ((strcmp(ns->sensDir, "3") == 0) || (strcmp(ns->sensDir, "0") == 0))
           ns->arrowAngle = 0;
-        else if (strcmp(ns->sensDir, "4") == 0)
+        else if (strcmp(ns->sensDir, "2") == 0)
           ns->arrowAngle = -45;
-        else if (strcmp(ns->sensDir, "5") == 0)
+        else if (strcmp(ns->sensDir, "1") == 0)
           ns->arrowAngle = -90;
 
         Serial.print("sensDev = ");
@@ -1596,15 +1606,17 @@ void draw_page()
     // if there was an error, then clear whole screen, otherwise only graphic updated part
     // M5.Lcd.fillScreen(BLACK);
     // M5.Lcd.fillRect(230, 110, 90, 100, TFT_BLACK);
-    if (config.dataSource != 2)
+    if (M5config.dataSource != 2)
     {
-      readTomatoRemote(config.tomatoShareID, &ns);
+      readTomatoRemote(M5config.tomatoShareID, &ns);
+      // return;
     }
     else
     {
       readNssettings(cfg.url, cfg.token);
       delay(20);
       readNightscout(cfg.url, cfg.token, &ns);
+      // return;
     };
 
     M5.Lcd.setFreeFont(FSSB12);
@@ -1706,7 +1718,7 @@ void draw_page()
         M5.Lcd.setTextColor(TFT_WHITE, BLACK);
       else
         M5.Lcd.setTextColor(TFT_LIGHTGREY, BLACK);
-      M5.Lcd.drawString(ns.delta_display, 103, 48, GFXFF);
+      M5.Lcd.drawString(ns.delta_display, 85, 48, GFXFF);
       M5.Lcd.setFreeFont(FSSB12);
     }
     else
@@ -1776,7 +1788,7 @@ void draw_page()
      * Get the  color of bg
      * - if use tomato, get the color via  the value of range
      * */
-    if (config.dataSource != 2)
+    if (M5config.dataSource != 2)
     {
       if (cfg.range == 0)
       {
@@ -1790,6 +1802,7 @@ void draw_page()
       {
         glColor = TFT_RED;
       };
+      // return;
     }
     else
     {
@@ -1867,7 +1880,7 @@ void draw_page()
     // readNightscout(cfg.url, cfg.token, &ns);
 
     uint16_t glColor = TFT_GREEN;
-    if (config.dataSource != 2)
+    if (M5config.dataSource != 2)
     {
       if (cfg.range == 0)
       {
@@ -1984,7 +1997,7 @@ void draw_page()
   {
     // calculate SGV color
     uint16_t glColor = TFT_GREEN;
-    if (config.dataSource != 2)
+    if (M5config.dataSource != 2)
     {
       if (cfg.range == 0)
       {
@@ -2338,6 +2351,9 @@ void draw_page()
       sprintf(tmpStr, "Total errors %d", err_log_count);
       M5.Lcd.drawString(tmpStr, 0, 20 + err_log_ptr * 18, GFXFF);
     }
+    Serial.print(M5version);
+    sprintf(tmpStr, "FW Version: %d", M5version);
+    M5.Lcd.drawString(tmpStr, 0, 20 + 9 * 18, GFXFF);
     IPAddress ip = WiFi.localIP();
     if (mDNSactive)
       sprintf(tmpStr, "%s.local (%u.%u.%u.%u)", cfg.deviceName, ip[0], ip[1], ip[2], ip[3]);
@@ -2359,19 +2375,19 @@ void serverForConfig()
   configManager.setVersionName(M5version);
 
   configManager.addParameterGroup("TomatoServer", new Metadata("Tomato Remote Configuration", "Configuration of Tomato remote shareID"))
-      .addParameter("tomatoShareID", config.tomatoShareID, 128, new Metadata("ShareID"));
+      .addParameter("tomatoShareID", M5config.tomatoShareID, 128, new Metadata("ShareID"));
   configManager.addParameterGroup("Nightscout", new Metadata("Nightscout Configuration", "Configuration of Nightscout URL and tokens"))
-      .addParameter("server", config.nSserver, 128, new Metadata("Server"))
-      .addParameter("token", config.token, 64, new Metadata("Token"))
-      .addParameter("warnningLow", &config.warningLow, new Metadata("Low Target", "According to the unit of mmol/l"))
-      .addParameter("warnningHigh", &config.warningHigh, new Metadata("High Target", "According to the unit of mmol/l"))
-      .addParameter("alarmLow", &config.alarmLow, new Metadata("Very Low Target", "According to the unit of mmol/l, Will alarm when the bg lower than this!"))
-      .addParameter("alarmHigh", &config.alarmHigh, new Metadata("Very High Target", "According to the unit of mmol/l,Will alarm when the bg higher than this!"));
+      .addParameter("server", M5config.nSserver, 128, new Metadata("Server"))
+      .addParameter("token", M5config.token, 64, new Metadata("Token"))
+      .addParameter("warnningLow", &M5config.warningLow, new Metadata("Low Target", "According to the unit of mmol/l"))
+      .addParameter("warnningHigh", &M5config.warningHigh, new Metadata("High Target", "According to the unit of mmol/l"))
+      .addParameter("alarmLow", &M5config.alarmLow, new Metadata("Very Low Target", "According to the unit of mmol/l, Will alarm when the bg lower than this!"))
+      .addParameter("alarmHigh", &M5config.alarmHigh, new Metadata("Very High Target", "According to the unit of mmol/l,Will alarm when the bg higher than this!"));
   configManager.addParameterGroup("General", new Metadata("General Configuration", "Configuration of target or timezone"))
-      .addParameter("timezone", &config.timezone, new Metadata("Time Zone", "timezone Like -1,0,1,2"))
-      .addParameter("dataSource", &config.dataSource, new Metadata("DataSource ", "1 for Toamto Remote, 2 for NIghtScout."));
+      .addParameter("timezone", &M5config.timezone, new Metadata("Time Zone", "timezone Like -1,0,1,2"))
+      .addParameter("dataSource", &M5config.dataSource, new Metadata("DataSource ", "1 for Toamto Remote, 2 for NIghtScout."));
 
-  configManager.begin(config);
+  configManager.begin(M5config);
 }
 
 void showGuidelines()
@@ -2470,20 +2486,21 @@ int8_t getBatteryLevel()
 
 void showConfigLog()
 {
-  Serial.print("config.nSenabled:");
-  Serial.println(config.nSenabled);
-  Serial.print("config.token:");
-  Serial.println(config.token);
-  Serial.print("config.tomatoShareID:");
-  Serial.println(config.tomatoShareID);
-  Serial.print("config.alarmHigh:");
-  Serial.println(config.alarmHigh);
-  Serial.print("config.warningHigh:");
-  Serial.println(config.warningHigh);
-  Serial.print("config.alarmLow:");
-  Serial.println(config.alarmLow);
-  Serial.print("config.warnningLow:");
-  Serial.println(config.warningLow);
+  Serial.print("M5config.nSenabled:");
+  Serial.println(M5config.nSenabled);
+  Serial.print("M5config.token:");
+  Serial.println(M5config.token);
+  Serial.print("M5config.tomatoShareID:");
+  Serial.println(M5config.tomatoShareID);
+  Serial.print("M5config.alarmHigh:");
+  Serial.println(M5config.alarmHigh);
+  Serial.print("M5config.warningHigh:");
+  Serial.println(M5config.warningHigh);
+  Serial.print("M5config.alarmLow:");
+  Serial.println(M5config.alarmLow);
+  Serial.print("M5config.warnningLow:");
+  Serial.println(M5config.warningLow);
+  return;
 }
 
 void setup()
@@ -2542,17 +2559,17 @@ void setup()
     webConfigPortal();
   }
 
-  if (config.timezone > 12 || config.timezone < -12)
+  if (M5config.timezone > 12 || M5config.timezone < -12)
   {
     M5.Lcd.fillScreen(BLACK);
     showGuidelines();
   }
 
   showConfigLog();
-  copyConfig(&cfg);
+  copyConfig(&cfg,&M5config);
 
   // yield();
-  if (WiFi.status() == WL_CONNECTED && (config.timezone <= 12 && config.timezone >= -12))
+  if (WiFi.status() == WL_CONNECTED && (M5config.timezone <= 12 && M5config.timezone >= -12))
   {
     getDevicetime();
     M5.Lcd.fillScreen(BLACK);
@@ -2575,15 +2592,15 @@ void loop()
   // yield();
   // -- doLoop should be called as frequently as possible.
   // update glycemia every 15s
-  if (WiFi.status() == WL_CONNECTED && (config.timezone <= 12 && config.timezone >= -12))
+  if (WiFi.status() == WL_CONNECTED && (M5config.timezone <= 12 && M5config.timezone >= -12))
   {
     if (millis() - msCount > 25000)
     {
       // if(dispPage==2)
       // M5.Lcd.drawLine(osx, osy, 160, 111, TFT_BLACK); // erase seconds hand while updating data
-      if (config.dataSource != 2)
+      if (M5config.dataSource != 2)
       {
-        readTomatoRemote(config.tomatoShareID, &ns);
+        readTomatoRemote(M5config.tomatoShareID, &ns);
       }
       else
       {
