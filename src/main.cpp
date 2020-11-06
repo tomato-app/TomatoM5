@@ -14,7 +14,7 @@
 #include <ArduinoJson.h>
 #include "Free_Fonts.h"
 #include "IniFile.h"
-#include "M5NSconfig.h"
+// #include "M5NSconfig.h"
 // #include "M5NSWebM5Config.h"
 #include "DHT12.h"
 #include <Wire.h> //The DHT12 uses I2C comunication.
@@ -1613,7 +1613,7 @@ void draw_page()
     }
     else
     {
-      readNssettings(cfg.url, cfg.token);
+      readNssettings(cfg.url, cfg.token);                                                    
       delay(20);
       readNightscout(cfg.url, cfg.token, &ns);
       // return;
