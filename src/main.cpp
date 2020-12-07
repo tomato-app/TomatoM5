@@ -22,7 +22,7 @@
 
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
-const int M5version = 2;
+const int M5version = 6;
 
 // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
