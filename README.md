@@ -22,3 +22,5 @@ M5STACK FOR TOMATO AND NIGHTSCOUT.
 - [MiaoMiao Smart Reader for Freestyle Libre](https://miaomiao.cool/?source=github)
 - [Tomato App](http://tomato.cool)
 - [Nightscout](https://github.com/nightscout/cgm-remote-monitor)
+
+This project refers to the [M5_NightscoutMon](https://github.com/mlukasek/M5_NightscoutMon)
