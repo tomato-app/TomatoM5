@@ -1329,7 +1329,6 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
   char deviceid[16];
   strcpy(deviceid, WiFi.macAddress().c_str());
 
-  // unsigned long endTime = esp_timer_get_time() * 1000000;
   size_t shareIdLen = strlen(shareID) + 1;
   char tomatoshareIDinURL[shareIdLen];
 
@@ -1355,7 +1354,7 @@ int readTomatoRemote(const char *shareID, struct NSinfo *ns)
   // strcat(NSurl, "&end_time=");
   // strcat(NSurl, String(endTime).c_str());
 
-  if ((WiFi.status() == WL_CONNECTED))
+  if ((WiFi.status() == WL_CONNECTED) && (shareIdLen == 17))
   {
     // configure target server and url
 
