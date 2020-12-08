@@ -19,7 +19,7 @@ M5STACK FOR TOMATO AND NIGHTSCOUT.
 cd TomatoM5
 code  .
 ```
-#### 23. Build the source code and upload it to the device using PlatformIO in PlatformIO CLI.
+#### 3. Build the source code and upload it to the device using PlatformIO in PlatformIO CLI.
 ```
  pio run -v -t upload
  pio run -t uploadfs
