@@ -1,14 +1,14 @@
 # Tomato M5
 
 M5STACK FOR TOMATO AND NIGHTSCOUT.
-
+![img](docs/Tomato%20M5%20Munual%2073ca32c36b874e46a59190df1c112ff0/IMG_4827.JPG)
 
 ## Features
 - Support Night scout and Tomato server as a data source to display realtime BG data and send alarms
 - Support Setting the config via web page
 - Support OAT to update the firmware
 
-## WIP: Instruction to building 
+## Instruction to building 
 
 ### Build from the source code using PlatformIO
 #### 0. Install [Vs Code](https://code.visualstudio.com/) amd [PlatformIO IDE for VSCode](https://platformio.org/install/ide?install=vscode).
@@ -24,11 +24,12 @@ code  .
  pio run -v -t upload
  pio run -t uploadfs
 ```
-### Build with the flash download tool from ESP
-### Build with the M5Burner
+### WIP: Build with the flash download tool from ESP
+### WIP: Build with the M5Burner
 
-## WIP: Instruction to use
-
+## Instruction to use
+- [Tomato M5 Manual](docs/TomatoM5Munual.md)
+- [Tomato M5 使用说明](docs/TomatoM5使用说明.md)
 ### links
 
 - M5stack
