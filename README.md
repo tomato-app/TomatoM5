@@ -10,19 +10,19 @@ M5STACK FOR TOMATO AND NIGHTSCOUT.
 
 ## Burning and Building
 ### One-click  burning using the MimiBurner(Only for Windows)
-#### 1. Download the [MimiBurner](./release/MiniBurner.exe).
-#### 2. Select the COM Number, then Click the `Burn` button.
+ 1. Download the [MimiBurner](./release/MiniBurner.exe).
+ 2. Select the COM Number, then Click the `Burn` button.
 ![d](./docs/Tomato%20M5%20Munual%2073ca32c36b874e46a59190df1c112ff0/WechatIMG1244.png)
 ### Build from the source code using PlatformIO
-#### 0. Install [VS Code](https://code.visualstudio.com/) amd [PlatformIO IDE for VSCode](https://platformio.org/install/ide?install=vscode).
-#### 1. Clone the source code .
+ 0. Install [VS Code](https://code.visualstudio.com/) amd [PlatformIO IDE for VSCode](https://platformio.org/install/ide?install=vscode).
+ 1. Clone the source code .
 `git clone  https://github.com/tomato-app/TomatoM5.git`
-#### 2. Enter the path and open it with the Vs Code .
+ 2. Enter the path and open it with the Vs Code .
 ```
 cd TomatoM5
 code  .
 ```
-#### 3. Build the source code and upload it to the device using PlatformIO in PlatformIO CLI.
+ 3. Build the source code and upload it to the device using PlatformIO in PlatformIO CLI.
 ```
  pio run -v -t upload
  pio run -t uploadfs
