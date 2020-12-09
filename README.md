@@ -8,6 +8,10 @@ M5STACK FOR TOMATO AND NIGHTSCOUT.
 - Support Setting the config via web page
 - Support OAT to update the firmware
 
+## Order device
+
+[M5 Stack Basic Core](https://s.click.aliexpress.com/e/_bWrEQg2)
+
 ## Burning and Building
 ### One-click  burning using the MimiBurner(Only for Windows)
  1. Download the [MimiBurner](./release/MiniBurner.exe).
@@ -35,7 +39,7 @@ code  .
 - [Tomato M5 使用说明](docs/TomatoM5使用说明.md)
 ### links
 
-- M5stack
+- [M5 Stack Basic Core](https://s.click.aliexpress.com/e/_bWrEQg2)
 - [MiaoMiao Smart Reader for Freestyle Libre](https://miaomiao.cool/?source=github)
 - [Tomato App](http://tomato.cool)
 - [Nightscout](https://github.com/nightscout/cgm-remote-monitor)
