@@ -10,7 +10,7 @@ M5STACK FOR TOMATO AND NIGHTSCOUT.
 
 ## Order device
 
-[M5 Stack Basic Core](https://s.click.aliexpress.com/e/_bWrEQg2) | [淘宝购买](https://s.click.taobao.com/ZCCBtsu)
+[M5 Stack Basic Core](https://s.click.aliexpress.com/e/_bWrEQg2) |  [淘宝购买](https://s.click.taobao.com/ZCCBtsu)
 
 ## Burning and Building
 ### One-click  burning using the MimiBurner(Only for Windows)

@@ -22,7 +22,7 @@
 
 DHT12 dht12; //Preset scale CELSIUS and ID 0x5c.
 
-const int M5version = 6;
+const int M5version = 7;
 
 // WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
 
@@ -843,6 +843,7 @@ void readNssettings(char *url, char *token)
       Serial.print("NSurlSettings:");
       Serial.println(NSurlSettings);
     }
+    return;
   }
 
   http.begin(NSurlSettings); //HTTP
