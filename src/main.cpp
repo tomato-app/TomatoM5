@@ -1323,10 +1323,11 @@ size_t trimwhitespace(char *out, size_t len, const char *str)
 int readTomatoRemote(const char *shareID, struct NSinfo *ns)
 {
   HTTPClient http;
+  char NSurl[128];
   if (M5config.timezone == 8){
-    char NSurl[256] = "https://app.awxbio.cool/m5stack/glycemic/"; //Prod Env CN 
+    strcpy(NSurl, "https://app.awxbio.cool/m5stack/glycemic/"); //Prod Env CN 
   }else{
-    char NSurl[256] = "https://app.tomato.cool/m5stack/glycemic/"; //Prod Env Global
+    strcpy(NSurl, "https://app.tomato.cool/m5stack/glycemic/"); //Prod Env Global
   }
   
   // char NSurl[256] = "http://testapi.tomato.cool/m5stack/glycemic/"; // Dev Env
